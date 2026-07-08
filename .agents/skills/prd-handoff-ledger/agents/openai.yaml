@@ -1,0 +1,6 @@
+interface:
+  display_name: "PRD Handoff Ledger"
+  short_description: "Confirm planning decisions before PRD generation"
+  default_prompt: "Use $prd-handoff-ledger to turn the completed grilling discussion into a confirmable PRD handoff ledger."
+policy:
+  allow_implicit_invocation: false

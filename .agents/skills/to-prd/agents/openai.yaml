@@ -1,0 +1,7 @@
+interface:
+  display_name: "To PRD"
+  short_description: "Compile planning decisions into PRDs"
+  default_prompt: "Use $to-prd to turn the confirmed planning discussion into a scoped PRD."
+
+policy:
+  allow_implicit_invocation: false

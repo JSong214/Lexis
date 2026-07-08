@@ -1,0 +1,7 @@
+interface:
+  display_name: "PRD To IA"
+  short_description: "Turn PRDs into UI-ready IA handoffs"
+  default_prompt: "Use $prd-to-ia to turn this PRD into a UI-ready information architecture handoff."
+
+policy:
+  allow_implicit_invocation: true
