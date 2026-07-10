@@ -1,0 +1,63 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local
+
+# Frontend: React + TypeScript
+node_modules/
+dist/
+build/
+.vite/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Backend: Python + FastAPI
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.python-version
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+dist/
+build/
+*.egg-info/
+
+# PostgreSQL local data and dumps
+pgdata/
+postgres-data/
+.postgres/
+*.dump
+*.sql.gz
+
+# Local runtime files
+*.log
+*.pid
+*.seed
+*.sqlite
+*.sqlite3
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
