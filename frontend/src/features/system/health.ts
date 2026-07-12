@@ -17,6 +17,10 @@ export function useHealthQuery() {
   return useQuery({
     queryKey: ['system', 'health'],
     queryFn: getHealth,
-    refetchInterval: 30_000,
+    staleTime: 60_000,
+    refetchInterval: (query) =>
+      query.state.status === 'error' ? 30_000 : 120_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 }
