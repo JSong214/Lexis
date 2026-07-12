@@ -3,28 +3,40 @@ import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { Brand, Card, PrimaryButton, StatusChip } from '../components/ui'
+import { useLoginMutation, useRegisterMutation } from '../features/auth/auth'
 
 interface AuthPageProps { mode: 'login' | 'register' }
 
 export function AuthPage({ mode }: AuthPageProps) {
   const isLogin = mode === 'login'
   const navigate = useNavigate()
-  const [error, setError] = useState('')
-  const [pending, setPending] = useState(false)
+  const loginMutation = useLoginMutation()
+  const registerMutation = useRegisterMutation()
+  const mutation = isLogin ? loginMutation : registerMutation
+  const [localError, setLocalError] = useState('')
+  const requestError = mutation.error instanceof Error ? mutation.error.message : ''
+  const error = localError || requestError
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
-    const email = String(data.get('email') ?? '')
+    const email = String(data.get('email') ?? '').trim()
     const password = String(data.get('password') ?? '')
     const confirmPassword = String(data.get('confirmPassword') ?? '')
-    if (!email.includes('@') || password.length < 6 || (!isLogin && password !== confirmPassword)) {
-      setError(isLogin ? 'Invalid email or password. Try again.' : 'Check your email and matching passwords.')
+    if (!email.includes('@') || password.length < 8) {
+      setLocalError('Enter a valid email and a password with at least 8 characters.')
       return
     }
-    setError('')
-    setPending(true)
-    window.setTimeout(() => navigate('/app/workspace'), 450)
+    if (!isLogin && password !== confirmPassword) {
+      setLocalError('The passwords do not match.')
+      return
+    }
+
+    setLocalError('')
+    mutation.mutate(
+      { email, password },
+      { onSuccess: () => navigate('/app/workspace', { replace: true }) },
+    )
   }
 
   return (
@@ -38,7 +50,17 @@ export function AuthPage({ mode }: AuthPageProps) {
           <p className="mt-7 max-w-[560px] text-base leading-6 text-ink-muted">
             {isLogin ? 'Log in to restore your private session and continue with today’s Maimemo-backed context lesson workflow.' : 'Create an account, connect Maimemo, and turn your daily vocabulary into one focused lesson.'}
           </p>
-          <div className="mt-8 h-[360px] rounded-xl border border-line bg-white" aria-hidden="true" />
+          <div className="mt-8 grid h-[360px] content-between rounded-xl border border-line bg-white p-8" aria-hidden="true">
+            <div>
+              <StatusChip>Private by default</StatusChip>
+              <p className="mt-6 max-w-sm text-2xl font-semibold leading-9">One account keeps each vocabulary profile, lesson, and answer separate.</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {['Vocabulary sync', 'Context lesson', 'Saved feedback'].map((label) => (
+                <div className="rounded-lg bg-surface-muted p-4 text-xs font-medium text-ink-muted" key={label}>{label}</div>
+              ))}
+            </div>
+          </div>
         </section>
         <div className="pt-1 lg:hidden"><Brand /></div>
         <Card className="mx-auto w-full max-w-[440px] p-6 shadow-[0_22px_60px_rgba(17,20,23,0.04)] sm:p-10">
@@ -49,22 +71,22 @@ export function AuthPage({ mode }: AuthPageProps) {
           </p>
           <div className="mt-5 flex items-center gap-3 rounded-lg bg-lexis-soft p-3 text-xs text-lexis">
             <LockKey aria-hidden="true" size={18} />
-            {isLogin ? 'Log in to continue to Workspace.' : 'Credentials are sent only to the Lexis API.'}
+            {isLogin ? 'Your session is restored with an HttpOnly cookie.' : 'Your password is hashed before it is stored.'}
           </div>
           <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
             <label className="grid gap-2 text-xs font-semibold">Email
-              <input className="h-11 rounded-lg border border-line bg-white px-3 text-sm font-normal outline-none placeholder:text-[#98a0a6] focus:border-lexis" name="email" placeholder="you@example.com" type="email" />
+              <input autoComplete="email" className="h-11 rounded-lg border border-line bg-white px-3 text-sm font-normal outline-none placeholder:text-[#98a0a6] focus:border-lexis" disabled={mutation.isPending} name="email" placeholder="you@example.com" required type="email" />
             </label>
             <label className="grid gap-2 text-xs font-semibold">Password
-              <input className="h-11 rounded-lg border border-line bg-white px-3 text-sm font-normal outline-none placeholder:text-[#98a0a6] focus:border-lexis" name="password" placeholder="Enter password" type="password" />
+              <input autoComplete={isLogin ? 'current-password' : 'new-password'} className="h-11 rounded-lg border border-line bg-white px-3 text-sm font-normal outline-none placeholder:text-[#98a0a6] focus:border-lexis" disabled={mutation.isPending} minLength={8} name="password" placeholder="At least 8 characters" required type="password" />
             </label>
             {!isLogin && (
               <label className="grid gap-2 text-xs font-semibold">Confirm password
-                <input className="h-11 rounded-lg border border-line bg-white px-3 text-sm font-normal outline-none placeholder:text-[#98a0a6] focus:border-lexis" name="confirmPassword" placeholder="Repeat password" type="password" />
+                <input autoComplete="new-password" className="h-11 rounded-lg border border-line bg-white px-3 text-sm font-normal outline-none placeholder:text-[#98a0a6] focus:border-lexis" disabled={mutation.isPending} minLength={8} name="confirmPassword" placeholder="Repeat password" required type="password" />
               </label>
             )}
             {error && <p className="flex items-center gap-2 rounded-lg bg-danger-soft p-3 text-xs text-danger" role="alert"><WarningCircle aria-hidden="true" size={18} />{error}</p>}
-            <PrimaryButton className="mt-1 w-full" disabled={pending} type="submit">{pending ? 'Opening workspace…' : isLogin ? 'Log in' : 'Create account'}</PrimaryButton>
+            <PrimaryButton className="mt-1 w-full" disabled={mutation.isPending} type="submit">{mutation.isPending ? 'Opening workspace…' : isLogin ? 'Log in' : 'Create account'}</PrimaryButton>
           </form>
           <p className="mt-5 text-xs text-ink-muted">
             {isLogin ? 'New to Lexis?' : 'Already have an account?'}{' '}

@@ -36,6 +36,9 @@ ENV/
 .coverage.*
 htmlcov/
 .hypothesis/
+.uv-cache/
+.pytest-tmp/
+pytest-cache-files-*/
 dist/
 build/
 *.egg-info/

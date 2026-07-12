@@ -1,5 +1,6 @@
 import { Navigate, createBrowserRouter } from 'react-router'
 
+import { GuestOnlyRoute, ProtectedRoute } from '../features/auth/route-guards'
 import { AppShell } from '../layouts/AppShell'
 import { AuthPage } from '../pages/AuthPage'
 import { CompletionPage } from '../pages/CompletionPage'
@@ -12,11 +13,11 @@ import { WorkspacePage } from '../pages/WorkspacePage'
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/app/workspace" replace /> },
-  { path: '/login', element: <AuthPage mode="login" /> },
-  { path: '/register', element: <AuthPage mode="register" /> },
+  { path: '/login', element: <GuestOnlyRoute><AuthPage mode="login" /></GuestOnlyRoute> },
+  { path: '/register', element: <GuestOnlyRoute><AuthPage mode="register" /></GuestOnlyRoute> },
   {
     path: '/app',
-    element: <AppShell />,
+    element: <ProtectedRoute><AppShell /></ProtectedRoute>,
     children: [
       { index: true, element: <Navigate to="workspace" replace /> },
       { path: 'workspace', element: <WorkspacePage /> },

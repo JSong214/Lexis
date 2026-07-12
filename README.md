@@ -5,13 +5,25 @@ Lexis is a React + FastAPI foundation for the vocabulary context-learning MVP de
 
 ## Development
 
+Start PostgreSQL:
+
+```powershell
+docker compose up -d db
+```
+
 Start the backend:
 
 ```powershell
 cd backend
+Copy-Item .env.example .env # first run only
 uv sync
+uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+The backend stores password hashes and opaque server-side sessions in PostgreSQL.
+Registration and login set an `HttpOnly`, `SameSite=Lax` cookie; the frontend
+restores the session through `GET /api/v1/auth/me`.
 
 Start the frontend in another terminal:
 
@@ -36,4 +48,5 @@ npm run lint
 npm run build
 ```
 
-The current foundation does not call OpenAI or require an API key.
+The current authentication slice does not call an LLM. OpenRouter configuration
+will be added with the lesson-generation slice.

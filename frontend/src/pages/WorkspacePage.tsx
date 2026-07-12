@@ -1,92 +1,113 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router'
 
-import { Card, MetricTile, PageTitle, PrimaryButton, ProgressBar, SectionHeading, StatusChip, WordChip } from '../components/ui'
-import { vocabularyGroups } from '../data/mock-data'
-import { useHealthQuery } from '../features/system/health'
+import { useGenerateLessonMutation } from '../features/lessons/lessons'
+import { ApiError } from '../lib/api-client'
+import { Card, MetricTile, PageTitle, PrimaryButton, SectionHeading, StatusChip, WordChip } from '../components/ui'
+import {
+  useMaimemoConnectionQuery,
+  useSyncMaimemoMutation,
+  useVocabularyProfileQuery,
+} from '../features/maimemo/maimemo'
 
 export function WorkspacePage() {
   const navigate = useNavigate()
-  const healthQuery = useHealthQuery()
-  const [selectedWords, setSelectedWords] = useState<string[]>(['anchor', 'estimate', 'ambiguous'])
-  const previewWords = useMemo(() => vocabularyGroups.flatMap((group) => group.words).slice(0, 6), [])
+  const generateLesson = useGenerateLessonMutation()
+  const connection = useMaimemoConnectionQuery()
+  const profile = useVocabularyProfileQuery()
+  const syncMaimemo = useSyncMaimemoMutation()
+  const [selectedWords, setSelectedWords] = useState<string[]>([])
+
+  useEffect(() => {
+    if (profile.data && selectedWords.length === 0) {
+      setSelectedWords([...profile.data.newWords, ...profile.data.fuzzyWords].slice(0, 3))
+    }
+  }, [profile.data, selectedWords.length])
+
+  const vocabularyGroups = useMemo(() => profile.data ? [
+    { title: 'New Words', note: 'Course focus candidates', words: profile.data.newWords },
+    { title: 'Fuzzy / Review Words', note: 'Worth practicing in context', words: profile.data.fuzzyWords },
+    { title: 'Mastered Sample', note: 'Context material', words: profile.data.masteredWordsSample },
+  ] : [], [profile.data])
 
   function toggleWord(word: string) {
-    setSelectedWords((current) => current.includes(word) ? current.filter((item) => item !== word) : [...current, word])
+    setSelectedWords((current) => current.includes(word)
+      ? current.filter((item) => item !== word)
+      : [...current, word])
+  }
+
+  const profileMissing = profile.error instanceof ApiError && profile.error.status === 404
+  const configured = connection.data?.configured ?? false
+
+  if (profile.isPending || connection.isPending) {
+    return <Card className="p-8"><StatusChip tone="default">Loading workspace</StatusChip><p className="mt-4 text-sm text-ink-muted">Checking your latest vocabulary profile…</p></Card>
+  }
+
+  if (!profile.data) {
+    return (
+      <div>
+        <PageTitle subtitle="Create one normalized vocabulary profile before generating a lesson.">Course Workbench</PageTitle>
+        <Card className="mt-6 p-6 md:p-10">
+          <StatusChip tone={configured ? 'warning' : 'default'}>{configured ? 'Sync required' : 'Connection required'}</StatusChip>
+          <h2 className="mt-5 text-2xl font-semibold">{configured ? 'Your connection is ready for its first sync.' : 'Connect a vocabulary source to begin.'}</h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-ink-muted">
+            {profileMissing ? 'Lexis could not find a saved vocabulary profile for this account.' : 'The profile API is currently unavailable.'}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            {configured
+              ? <PrimaryButton disabled={syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()}>{syncMaimemo.isPending ? 'Syncing…' : 'Sync mock vocabulary'}</PrimaryButton>
+              : <Link className="inline-flex min-h-11 items-center rounded-lg bg-lexis px-5 text-sm font-semibold text-white" to="/app/settings/connection">Open connection settings</Link>}
+          </div>
+          {syncMaimemo.error instanceof Error && <p className="mt-4 text-xs text-danger">{syncMaimemo.error.message}</p>}
+        </Card>
+      </div>
+    )
   }
 
   return (
     <div>
-      <PageTitle subtitle="Confirm sync, adjust today’s words, then generate one valid lesson.">Course Workbench</PageTitle>
-
-      <div className="mt-3 grid gap-3 md:mt-4 md:gap-4 lg:mt-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.98fr)] lg:grid-rows-[154px_76px_248px] lg:gap-5">
-        <Card className="order-1 p-3 md:p-4 lg:hidden lg:col-start-2 lg:row-start-1 lg:p-5">
-          <div className="flex items-start justify-between gap-3">
-            <SectionHeading subtitle="Latest sync 09:12. Snapshot ready.">Maimemo connected</SectionHeading>
-            <StatusChip tone={healthQuery.isError ? 'danger' : 'success'}>{healthQuery.isError ? 'Offline' : 'Ready'}</StatusChip>
-          </div>
-        </Card>
-
-        <Card className="order-2 p-3 md:p-4 lg:col-start-1 lg:row-start-1 lg:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div><h2 className="text-lg font-semibold">Vocabulary profile</h2><p className="mt-1 hidden text-xs text-ink-muted md:block">Latest Maimemo snapshot is normalized and ready.</p></div>
-            <div className="hidden md:block"><StatusChip>Ready</StatusChip></div>
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-3 md:mt-4 md:grid-cols-4">
-            <MetricTile label="New words" note="from sync" value="24" />
-            <MetricTile label="Review" note="needs context" value="8" />
-            <MetricTile label="Mastered sample" note="context only" value="12" />
-            <div className="hidden md:block"><MetricTile label="Mastered count" note="reference" value="3.4k" /></div>
-          </div>
-        </Card>
-
-        <Card className="order-3 p-3 md:p-4 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:p-5">
-          <div className="flex items-start justify-between">
-            <SectionHeading subtitle="Lesson generated. Reading is in progress.">Course completion</SectionHeading>
-            <strong className="text-2xl text-lexis">1/3</strong>
-          </div>
-          <div className="mt-2"><ProgressBar value={62} /></div>
-          <div className="mt-2 flex gap-2 overflow-hidden text-[10px] md:text-[11px] lg:hidden">
-            <span className="shrink-0 rounded-md bg-lexis-soft px-2 py-1 text-lexis">Lesson done</span>
-            <span className="shrink-0 rounded-md bg-surface-muted px-2 py-1">Reading now</span>
-            <span className="shrink-0 rounded-md bg-warning-soft px-2 py-1 text-warning">Exercise next</span>
-          </div>          <div className="mt-3 hidden gap-1.5 lg:grid">
-            <div className="grid grid-cols-[1fr_82px_58px] items-center rounded-md bg-lexis-soft px-3 py-2 text-[11px]"><strong>Lesson</strong><span className="text-ink-muted">Generated</span><span className="text-lexis">Done</span></div>
-            <div className="grid grid-cols-[1fr_82px_58px] items-center rounded-md bg-surface-muted px-3 py-2 text-[11px]"><strong>Reading</strong><span className="text-ink-muted">2 / 4 parts</span><span className="text-warning">Active</span></div>
-            <div className="grid grid-cols-[1fr_82px_58px] items-center rounded-md bg-surface-muted px-3 py-2 text-[11px]"><strong>Exercise</strong><span className="text-ink-muted">Not started</span><span className="text-warning">Next</span></div>
-          </div>
-        </Card>
-
-        <Card className="order-4 p-3 md:p-4 lg:col-start-1 lg:row-start-2 lg:row-span-2 lg:p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div><h2 className="text-lg font-semibold"><span className="md:hidden">Word package preview</span><span className="hidden md:inline">Word package adjustment</span></h2><p className="mt-1 hidden text-xs leading-5 text-ink-muted md:block">Remove unsuitable words or mark 1–3 focus candidates.</p></div>
-            <span className="shrink-0 rounded-md bg-lexis-soft px-2 py-1 text-[11px] text-lexis">{selectedWords.length} focus</span>
-          </div>
-          <div className="mt-5 hidden space-y-7 md:block">
-            {vocabularyGroups.map((group) => (
-              <div key={group.title}>
-                <div className="mb-2.5 flex justify-between text-xs"><strong>{group.title}</strong><span className="text-ink-muted">{group.note}</span></div>
-                <div className="flex flex-wrap gap-2">{group.words.map((word) => <WordChip active={selectedWords.includes(word)} key={word} onClick={() => toggleWord(word)}>{word}</WordChip>)}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 md:hidden">
-            {previewWords.map((word) => <WordChip active={selectedWords.includes(word)} key={word} onClick={() => toggleWord(word)}>{word}</WordChip>)}
-          </div>
-        </Card>
-
-        <Card className="order-5 p-3 md:p-4 lg:col-start-2 lg:row-start-3 lg:p-5">
-          <div className="hidden md:block"><StatusChip>Ready to generate</StatusChip></div>
-          <div className="md:mt-3"><SectionHeading subtitle="Uses the latest snapshot plus current word adjustments.">Lesson generation</SectionHeading></div>
-          <dl className="mt-3 hidden grid-cols-[110px_1fr] gap-y-1 text-xs md:grid">
-            <dt className="text-ink-muted">CEFR level</dt><dd className="font-semibold">B2</dd>
-            <dt className="text-ink-muted">Goal</dt><dd className="font-semibold">IELTS reading</dd>
-            <dt className="text-ink-muted">Reading length</dt><dd className="font-semibold">120–150 words</dd>
-            <dt className="text-ink-muted">Unknown words</dt><dd className="font-semibold">&lt;= 5 + Chinese aid</dd>
-          </dl>
-          <div className="mt-3 flex gap-2 text-[11px] md:hidden"><span className="rounded-md bg-surface-muted px-2 py-1">CEFR B2</span><span className="rounded-md bg-surface-muted px-2 py-1">Goal IELTS</span><span className="rounded-md bg-surface-muted px-2 py-1">Unknown ≤5</span></div>
-          <PrimaryButton className="mt-3 w-full md:mt-2" disabled={selectedWords.length === 0} onClick={() => navigate('/app/lessons/demo')}>Generate lesson</PrimaryButton>
-        </Card>
+      <PageTitle subtitle="Review the latest synchronized words and prepare the next lesson.">Course Workbench</PageTitle>
+      <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.95fr)]">
+        <div className="grid gap-5">
+          <Card className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <SectionHeading subtitle="Saved from the latest MockMaimemoSyncProvider snapshot.">Vocabulary profile</SectionHeading>
+              <StatusChip>Ready</StatusChip>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <MetricTile label="New words" note="from sync" value={String(profile.data.newWords.length)} />
+              <MetricTile label="Review" note="needs context" value={String(profile.data.fuzzyWords.length)} />
+              <MetricTile label="Mastered sample" note="context only" value={String(profile.data.masteredWordsSample.length)} />
+              <MetricTile label="Mastered count" note="reference" value={profile.data.masteredWordCount.toLocaleString()} />
+            </div>
+          </Card>
+          <Card className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <SectionHeading subtitle="Choose the words that should receive extra attention in the lesson.">Word package adjustment</SectionHeading>
+              <span className="rounded-md bg-lexis-soft px-2 py-1 text-[11px] text-lexis">{selectedWords.length} focus</span>
+            </div>
+            <div className="mt-6 space-y-6">
+              {vocabularyGroups.map((group) => (
+                <div key={group.title}>
+                  <div className="mb-2 flex justify-between gap-4 text-xs"><strong>{group.title}</strong><span className="text-ink-muted">{group.note}</span></div>
+                  <div className="flex flex-wrap gap-2">{group.words.map((word) => <WordChip active={selectedWords.includes(word)} key={word} onClick={() => toggleWord(word)}>{word}</WordChip>)}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+        <div className="grid content-start gap-5">
+          <Card className="p-5">
+            <SectionHeading subtitle="Refreshes this account's snapshot and vocabulary profile.">Maimemo sync</SectionHeading>
+            <p className="mt-4 text-xs text-ink-muted">Provider: MockMaimemoSyncProvider</p>
+            <button className="mt-5 h-10 w-full rounded-lg border border-line bg-white text-sm font-semibold hover:bg-surface-muted disabled:opacity-50" disabled={syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()} type="button">{syncMaimemo.isPending ? 'Syncing…' : 'Sync again'}</button>
+          </Card>
+          <Card className="p-5">
+            <StatusChip>Schema validated</StatusChip>
+            <SectionHeading subtitle="Uses the configured LLMProvider and validates the structured ContextLesson before saving.">Lesson generation</SectionHeading>
+            <PrimaryButton className="mt-5 w-full" disabled={selectedWords.length === 0 || generateLesson.isPending} onClick={() => generateLesson.mutate({ cefrLevel: 'B2', examGoal: 'IELTS reading', selectedWords }, { onSuccess: (lesson) => navigate('/app/lessons/' + lesson.id) })}>{generateLesson.isPending ? 'Generating…' : 'Generate lesson'}</PrimaryButton>
+          </Card>
+        </div>
       </div>
     </div>
   )

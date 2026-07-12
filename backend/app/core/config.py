@@ -1,5 +1,7 @@
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,7 +13,17 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
-    database_url: str = "postgresql+asyncpg://postgres@localhost:5432/lexis"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:55433/lexis"
+    session_cookie_name: str = "lexis_session"
+    session_max_age_seconds: int = 60 * 60 * 24 * 14
+    session_cookie_secure: bool = False
+    secret_encryption_key: SecretStr | None = None
+    llm_provider: Literal["mock", "openrouter"] = "mock"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_api_key: SecretStr | None = None
+    openrouter_model: str | None = None
+    openrouter_http_referer: str | None = "http://localhost:5173"
+    openrouter_app_title: str | None = "Lexis"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -23,4 +35,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

@@ -1,0 +1,76 @@
+from cryptography.fernet import Fernet
+from fastapi.testclient import TestClient
+
+from app.core.secret_cipher import SecretCipher
+
+
+def register(client: TestClient, email: str = "sync@example.com") -> None:
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": "correct-horse-battery"},
+    )
+    assert response.status_code == 201
+
+
+def test_secret_cipher_encrypts_and_decrypts() -> None:
+    cipher = SecretCipher(Fernet.generate_key().decode("utf-8"))
+
+    encrypted = cipher.encrypt("maimemo-secret")
+
+    assert encrypted != "maimemo-secret"
+    assert cipher.decrypt(encrypted) == "maimemo-secret"
+
+
+def test_sync_requires_connection(client: TestClient) -> None:
+    register(client)
+
+    response = client.post("/api/v1/maimemo/sync")
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Configure Maimemo before syncing"}
+
+
+def test_mock_sync_builds_vocabulary_profile(client: TestClient) -> None:
+    register(client)
+    connection = client.put(
+        "/api/v1/maimemo/connection",
+        json={"provider": "mock", "secret": "maimemo-secret"},
+    )
+    assert connection.status_code == 200
+    assert connection.json()["configured"] is True
+    assert connection.json()["secretSaved"] is True
+    assert "secret" not in connection.json()
+
+    response = client.post("/api/v1/maimemo/sync")
+
+    assert response.status_code == 200
+    profile = response.json()
+    assert profile["newWords"] == [
+        "anchor",
+        "segment",
+        "estimate",
+        "criteria",
+        "draft",
+        "validate",
+    ]
+    assert profile["fuzzyWords"] == ["retain", "compile", "ambiguous", "scope"]
+    assert profile["masteredWordsSample"] == ["stable", "fluent", "pattern", "contrast"]
+    assert profile["masteredWordCount"] == 3400
+
+    latest = client.get("/api/v1/vocabulary/profile")
+    assert latest.status_code == 200
+    assert latest.json()["snapshotId"] == profile["snapshotId"]
+
+
+def test_profile_is_isolated_by_user(client: TestClient) -> None:
+    register(client, "first-sync@example.com")
+    client.put("/api/v1/maimemo/connection", json={"provider": "mock"})
+    first_profile = client.post("/api/v1/maimemo/sync")
+    assert first_profile.status_code == 200
+    client.post("/api/v1/auth/logout")
+
+    register(client, "second-sync@example.com")
+    response = client.get("/api/v1/vocabulary/profile")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No vocabulary profile is available"}
