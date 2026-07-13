@@ -21,7 +21,7 @@ Lexis 的核心目标是把用户在 Maimemo 中的当日词汇学习数据，�
 
 | 系统 | IA 相关性 | 标签 | 来源/依据 |
 | --- | --- | --- | --- |
-| Maimemo OpenAPI | 提供今日新词、复习或模糊词、已掌握词样本、掌握词汇量；Lexis 只读，不写回。 | source-backed | FR10-FR15, Data Boundary |
+| Maimemo OpenAPI | 提供今日新词、复习或模糊词、已掌握词样本、墨墨词汇记录总数；Lexis 只读，不写回。 | source-backed | FR10-FR15, Data Boundary |
 | OpenAI / `LLMProvider` | 生成结构化 `ContextLesson`、逐题反馈、最终总结。 | source-backed | FR22-FR26, AI Behavior Contract |
 
 ### 核心范围
@@ -70,7 +70,7 @@ Lexis 的核心目标是把用户在 Maimemo 中的当日词汇学习数据，�
 | AUTH-001 | FR1-FR5 | 未登录/学习者 -> 注册或登录 -> session -> 创建登录态 -> 只允许访问自己的学习功能。 | critical | source-backed |
 | SEC-001 | FR6-FR9 | 系统 -> 保护 secret/token -> Maimemo secret / AI key / user AI token boundary -> 加密、服务端保存、不返回前端、不进普通日志。 | critical | source-backed |
 | SYNC-001 | FR10-FR15 | 学习者 -> 同步 Maimemo -> sync snapshot -> 获取并标准化当日词汇数据 -> 供词汇画像和课程生成使用。 | critical | source-backed |
-| VOCAB-001 | FR16-FR19 | 系统 -> 构建词汇画像 -> 最新 sync snapshot -> 区分新词、复习或模糊词、已掌握词样本和掌握词汇量。 | critical | source-backed |
+| VOCAB-001 | FR16-FR19 | 系统 -> 构建词汇画像 -> 最新 sync snapshot -> 区分新词、复习或模糊词、已掌握词样本和墨墨词汇记录总数。 | critical | source-backed |
 | GEN-001 | FR20-FR26, FR45, FR47 | 学习者 -> 手动生成课程 -> `LessonGenerationContext` -> 调用 `LLMProvider` -> 生成结构化 `ContextLesson`。 | critical | source-backed |
 | CEFR-001 | FR27-FR33 | 系统 -> 约束课程难度 -> CEFR A1-C2 规则 -> 控制长度、额外陌生词和辅助信息。 | critical | source-backed |
 | CONTENT-001 | FR34-FR44 | 学习者 -> 学习课程内容 -> `ContextLesson` -> 阅读、词汇、语法、四类练习 -> 完成语境学习。 | critical | source-backed |
@@ -116,10 +116,10 @@ Lexis 的核心目标是把用户在 Maimemo 中的当日词汇学习数据，�
 | `User` | Lexis 账号主体。 | 学习者 | email, auth status, CEFR level, exam/learning goal | `Session`, 用户拥有的全部数据 | unregistered、registered、authenticated、logged out | source-backed |
 | `Session` | 后端 session 和 HttpOnly cookie 登录态。 | 后端系统 | session status, expiry | `User` | active、expired、revoked | source-backed |
 | `MaimemoConnection` | 用户授权/配置 Maimemo 连接的记录。 | 学习者 | connection status, secret saved indicator, last sync status | `User`, `MaimemoSyncSnapshot` | not configured、configured、sync ready、sync failed | source-backed |
-| `MaimemoSyncSnapshot` | 一次同步结果快照。 | 后端系统 | `newWords`, `fuzzyWords/reviewWords`, `masteredWordsSample`, `masteredWordCount`, timestamp, status | `MaimemoConnection`, `VocabularyProfile`, `ContextLesson` | syncing、succeeded、failed | source-backed |
-| `VocabularyProfile` | 基于最新 snapshot 的课程生成词汇画像。 | 后端系统 | new words, fuzzy/review words, mastered sample, mastered count | `MaimemoSyncSnapshot`, `LessonGenerationContext` | unavailable、ready、stale/unresolved | source-backed |
+| `MaimemoSyncSnapshot` | 一次同步结果快照。 | 后端系统 | `newWords`, `fuzzyWords/reviewWords`, `masteredWordsSample`, `trackedWordCount`, timestamp, status | `MaimemoConnection`, `VocabularyProfile`, `ContextLesson` | syncing、succeeded、failed | source-backed |
+| `VocabularyProfile` | 基于最新 snapshot 的课程生成词汇画像。 | 后端系统 | new words, fuzzy/review words, mastered sample, tracked word count | `MaimemoSyncSnapshot`, `LessonGenerationContext` | unavailable、ready、stale/unresolved | source-backed |
 | `WordPackageAdjustment` | 生成前用户对词包的轻量调整。 | 学习者 | selected/removed/emphasized words, adjustment notes | `VocabularyProfile`, `LessonGenerationContext` | unedited、edited、invalid/unresolved | source-backed |
-| `LessonGenerationContext` | AI 课程生成输入 contract。 | 后端系统 | `examGoal`, `cefrLevel`, `newWords`, `fuzzyWords`, `masteredWordsSample`, `masteredWordCount`, `userWordAdjustments`, `generationConstraints` | `VocabularyProfile`, `ContextLesson` | ready、missing inputs、submitted | source-backed |
+| `LessonGenerationContext` | AI 课程生成输入 contract。 | 后端系统 | `examGoal`, `cefrLevel`, `newWords`, `fuzzyWords`, `masteredWordsSample`, `trackedWordCount`, `userWordAdjustments`, `generationConstraints` | `VocabularyProfile`, `ContextLesson` | ready、missing inputs、submitted | source-backed |
 | `ContextLesson` | AI 生成课程内容；不存用户作答和反馈。 | `LLMProvider` / 后端系统 | reading, unfamiliar word aid, target word explanation, grammar analysis, four exercise types, validation result | `LessonAttempt`, `MaimemoSyncSnapshot` | generating、validation pending、valid、invalid、generation failed | source-backed |
 | `Exercise` | `ContextLesson` 内的题目内容。 | `LLMProvider` / 后端系统 | type, prompt, target words, expected answer/rubric | `ContextLesson`, `ExerciseFeedback` | unanswered、answered、feedback available | inferred |
 | `LessonAttempt` | 用户对某节课的一次学习过程。 | 学习者 | answers, progress, final summary, completion state | `ContextLesson`, `ExerciseFeedback` | not started、in progress、incomplete/draft、completed | source-backed |
@@ -390,7 +390,7 @@ Lexis 的核心目标是把用户在 Maimemo 中的当日词汇学习数据，�
 | 目标 | 保存 Maimemo connection，并生成最新 sync snapshot / vocabulary profile。 |
 | 前置条件 | 学习者已登录。 |
 | 触发 | 学习者进入未连接状态的 Workspace，或主动选择 sync。 |
-| 主路径 | 1. 学习者打开 Connection Settings。2. 学习者提交 Maimemo secret。3. 后端加密并保存 secret。4. 学习者触发 sync。5. `MaimemoSyncProvider` 读取 Maimemo data。6. 后端标准化为 `newWords`, `fuzzyWords`, `masteredWordsSample`, `masteredWordCount`。7. 系统保存 snapshot 并构建 vocabulary profile。8. Workspace 展示最新 profile。 |
+| 主路径 | 1. 学习者打开 Connection Settings。2. 学习者提交 Maimemo secret。3. 后端加密并保存 secret。4. 学习者触发 sync。5. `MaimemoSyncProvider` 读取 Maimemo data。6. 后端标准化为 `newWords`, `fuzzyWords`, `masteredWordsSample`, `trackedWordCount`。7. 系统保存 snapshot 并构建 vocabulary profile。8. Workspace 展示最新 profile。 |
 | 分支 | dev/test 中的 mock provider 可以生成等价标准化数据。real adapter 缺少 `masteredWordsSample` -> adapter incomplete/unresolved。 |
 | 失败/空/权限状态 | 未连接 -> connection empty state。sync failed -> 保留历史并展示 retry。未授权访问 -> permission state。secret 不得暴露。 |
 | 完成状态 | `VocabularyProfile` 可以用于生成课程。 |

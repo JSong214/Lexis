@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     openrouter_model: str | None = None
     openrouter_http_referer: str | None = "http://localhost:5173"
     openrouter_app_title: str | None = "Lexis"
+    maimemo_base_url: str = "https://open.maimemo.com/open/api/v1"
+    maimemo_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

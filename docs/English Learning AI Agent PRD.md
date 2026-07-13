@@ -24,7 +24,7 @@ Ready for review
 | --- | --- | --- | --- | --- |
 | D1 | Confirmed Decision | Lexis 的核心闭环是同步墨墨词汇数据，生成语境阅读课程，逐题反馈，并保存学习历史和语境掌握状态。 | MVP Plan | requirement |
 | D2 | Confirmed Decision | MVP 必须有 Maimemo sync 架构，并提供 `MockMaimemoSyncProvider`。 | MVP Plan | requirement |
-| D3 | Confirmed Decision | 真实 Maimemo adapter 必须能提供今日新词、复习或模糊词、已掌握词样本、掌握词汇量。 | MVP Plan | requirement |
+| D3 | Confirmed Decision | 真实 Maimemo adapter 必须能提供今日新词、复习或模糊词、已掌握词样本、墨墨词汇记录总数。 | MVP Plan | requirement |
 | D4 | Confirmed Decision | 课程生成手动触发，不强制每日完成。 | MVP Plan | requirement |
 | D5 | Confirmed Decision | MVP 先做固定结构阅读课程，不做自由聊天式 AI Tutor。 | MVP Plan | requirement |
 | D6 | Confirmed Decision | 课程必须覆盖词汇语境、句法理解、段落逻辑、输出练习四类题。 | MVP Plan | requirement |
@@ -140,7 +140,7 @@ CEFR A1-C2 全阶段英语学习者。
 3. 用户配置 Maimemo 连接，secret 加密保存。
 4. 用户点击同步 Maimemo。
 5. 系统获取并保存本次 sync snapshot。
-6. 系统展示今日新词、复习或模糊词、已掌握词样本、掌握词汇量。
+6. 系统展示今日新词、复习或模糊词、已掌握词样本、墨墨词汇记录总数。
 7. 用户在生成前轻量调整词包。
 8. 用户点击生成课程。
 9. 系统调用 `LLMProvider` 生成结构化 `ContextLesson`。
@@ -174,21 +174,21 @@ CEFR A1-C2 全阶段英语学习者。
 - FR10: 系统必须定义 `MaimemoSyncProvider` abstraction。
 - FR11: 系统必须提供 `MockMaimemoSyncProvider`，用于无真实接口时跑通完整闭环。
 - FR12: 系统必须预留 `RealMaimemoSyncProvider`。
-- FR13: 同步输出必须标准化为 `newWords`、`reviewWords` 或 `fuzzyWords`、`masteredWordsSample`、`masteredWordCount`。
+- FR13: 同步输出必须标准化为 `newWords`、`reviewWords` 或 `fuzzyWords`、`masteredWordsSample`、`trackedWordCount`。
 - FR14: `masteredWordsSample` 是 MVP 必需数据。若真实接口无法提供，真实 adapter 不算完成。
 - FR15: Lexis 不得调用 Maimemo 写入学习状态。
 
 ### Vocabulary Profile
 
 - FR16: 系统必须基于最新 sync snapshot 构建用户词汇画像。
-- FR17: 词汇画像必须区分今日新词、复习或模糊词、已掌握词样本、掌握词汇量。
+- FR17: 词汇画像必须区分今日新词、复习或模糊词、已掌握词样本、墨墨词汇记录总数。
 - FR18: Lexis 不得自建长期复习调度；复习调度由 Maimemo 决定。
 - FR19: 每次课程默认只使用最新同步的当日学习词。
 
 ### Lesson Generation
 
 - FR20: 系统必须定义 `LessonGenerationContext`。
-- FR21: `LessonGenerationContext` 至少包含 `examGoal`、`cefrLevel`、`newWords`、`fuzzyWords`、`masteredWordsSample`、`masteredWordCount`、`userWordAdjustments`、`generationConstraints`。
+- FR21: `LessonGenerationContext` 至少包含 `examGoal`、`cefrLevel`、`newWords`、`fuzzyWords`、`masteredWordsSample`、`trackedWordCount`、`userWordAdjustments`、`generationConstraints`。
 - FR22: 系统必须定义 `LLMProvider` abstraction。
 - FR23: MVP 必须提供 `MockLLMProvider`。
 - FR24: MVP 首选 OpenAI-backed provider。
@@ -268,7 +268,7 @@ AI 负责把 Maimemo 同步后的词汇数据转化为 CEFR 匹配的英语阅�
 - 今日新词。
 - 复习或模糊词。
 - 已掌握词样本。
-- 掌握词汇量。
+- 墨墨词汇记录总数。
 - 用户生成前轻量调整。
 - CEFR 生成约束。
 - 用户作答。
@@ -347,7 +347,13 @@ AI 负责把 Maimemo 同步后的词汇数据转化为 CEFR 匹配的英语阅�
 - `StudyRecord`: `voc_id`、`voc_spelling`、`add_date`、`first_study_date`、`last_study_date`、`next_study_date`、`last_response`、`study_count`、`tags`
 - `Vocabulary`: `id`、`spelling`
 
-MVP adapter 需要把这些字段或可用等价字段归一化为 Lexis 的 `newWords`、`fuzzyWords`、`masteredWordsSample`、`masteredWordCount`。
+MVP adapter 需要把这些字段或可用等价字段归一化为 Lexis 的 `newWords`、`fuzzyWords`、`masteredWordsSample`、`trackedWordCount`。
+
+`trackedWordCount` 来自 `query_study_records(as_count=true)`，表示墨墨学习记录总量。官方 API 未提供精确的已掌握词总数，因此 UI 不把该数值表述为精确的已掌握词总数。
+
+字段映射采用墨墨官方 `StudyResponse` 语义：`newWords` 来自 `StudyTodayItem.is_new=true`；`fuzzyWords` 来自当日或历史记录中的 `VAGUE`、`FORGET`，以及 `StudyRecord.tags=STICKING`；`masteredWordsSample` 来自 `WELL_FAMILIAR`。普通 `StudyRecord` 查询最多返回 1000 条，因此模糊词与熟知词是近期样本，不表示完整账号统计。
+
+同步同时调用 `get_study_progress`，保存 `dailyFinishedCount`、`dailyTotalCount`、`dailyStudyTimeMs`。如果用户当天未在墨墨 App 初始化或未开启自动同步，这些公测字段可能为零或不准确。
 
 ## Fallbacks
 

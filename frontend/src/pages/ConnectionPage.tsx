@@ -34,21 +34,21 @@ export function ConnectionPage() {
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.95fr)]">
         <Card className="p-5 md:p-8">
           <div className="flex items-start justify-between gap-4">
-            <SectionHeading subtitle="Mock mode is active while the real Maimemo adapter is being verified.">Connection setup</SectionHeading>
+            <SectionHeading subtitle="Uses the read-only Maimemo Open API with your encrypted token.">Connection setup</SectionHeading>
             <StatusChip tone={configured ? 'success' : 'warning'}>{configured ? 'Configured' : 'Setup required'}</StatusChip>
           </div>
           <form className="mt-6" onSubmit={handleSave}>
             <label className="grid gap-2 text-xs font-semibold">
-              Maimemo secret <span className="font-normal text-ink-muted">(optional in mock mode)</span>
-              <input autoComplete="off" className="h-12 rounded-lg border border-line px-4 text-sm font-normal outline-none placeholder:text-[#98a0a6] focus:border-lexis" disabled={saveConnection.isPending} name="secret" placeholder={connection.data?.secretSaved ? 'Encrypted secret already saved' : 'Leave empty to use mock data'} type="password" />
+              Maimemo Open API token
+              <input autoComplete="off" className="h-12 rounded-lg border border-line px-4 text-sm font-normal outline-none placeholder:text-[#98a0a6] focus:border-lexis" disabled={saveConnection.isPending} name="secret" placeholder={connection.data?.secretSaved ? 'Encrypted token already saved' : 'Paste your Maimemo Open API token'} type="password" />
             </label>
             <div className="mt-4 flex justify-end">
-              <PrimaryButton className="w-full sm:w-auto" disabled={saveConnection.isPending} type="submit">{saveConnection.isPending ? 'Saving…' : 'Save mock connection'}</PrimaryButton>
+              <PrimaryButton className="w-full sm:w-auto" disabled={saveConnection.isPending} type="submit">{saveConnection.isPending ? 'Saving…' : 'Save Maimemo connection'}</PrimaryButton>
             </div>
           </form>
           <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface-muted p-3 text-xs text-ink-muted">
             <ShieldCheck className="shrink-0 text-lexis" size={19} />
-            Secret values are encrypted at rest and never returned by the API.
+            The token is encrypted at rest, used only by the backend, and never returned by the API.
           </div>
           {error && <p className="mt-4 rounded-lg bg-danger-soft p-3 text-xs text-danger" role="alert">{error}</p>}
         </Card>
@@ -61,10 +61,10 @@ export function ConnectionPage() {
           <div className="mt-6 grid grid-cols-3 gap-3">
             <MetricTile label="New words" value={String(profile.data?.newWords.length ?? 0)} />
             <MetricTile label="Review" value={String(profile.data?.fuzzyWords.length ?? 0)} />
-            <MetricTile label="Mastered" value={(profile.data?.masteredWordCount ?? 0).toLocaleString()} />
+            <MetricTile label="Tracked" value={(profile.data?.trackedWordCount ?? 0).toLocaleString()} />
           </div>
           <button className="mt-6 h-10 w-full rounded-lg border border-line bg-white text-sm font-semibold transition hover:bg-surface-muted disabled:opacity-50" disabled={!configured || syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()} type="button">
-            {syncMaimemo.isPending ? 'Syncing…' : 'Sync mock vocabulary'}
+            {syncMaimemo.isPending ? 'Syncing…' : 'Sync Maimemo now'}
           </button>
           <p className="mt-3 text-center text-[11px] text-ink-muted">{profile.data ? 'Latest profile saved to your account' : 'No successful sync yet'}</p>
         </Card>

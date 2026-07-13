@@ -17,7 +17,7 @@ def test_openrouter_provider_uses_bearer_auth_and_structured_output() -> None:
         exam_goal="IELTS reading",
         selected_words=["anchor", "estimate"],
         mastered_words_sample=["stable"],
-        mastered_word_count=3400,
+        tracked_word_count=3400,
     )
     expected = asyncio.run(MockLLMProvider().generate_lesson(context))
 
@@ -28,6 +28,10 @@ def test_openrouter_provider_uses_bearer_auth_and_structured_output() -> None:
         payload = json.loads(request.content)
         assert payload["model"] == "provider/test-model"
         assert payload["response_format"]["type"] == "json_schema"
+        schema = payload["response_format"]["json_schema"]["schema"]
+        assert schema["additionalProperties"] is False
+        assert schema["$defs"]["Exercise"]["additionalProperties"] is False
+        assert "options" in schema["$defs"]["Exercise"]["required"]
         return httpx.Response(
             200,
             json={

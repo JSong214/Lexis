@@ -15,7 +15,10 @@ export interface VocabularyProfile {
   newWords: string[]
   fuzzyWords: string[]
   masteredWordsSample: string[]
-  masteredWordCount: number
+  trackedWordCount: number
+  dailyFinishedCount: number
+  dailyTotalCount: number
+  dailyStudyTimeMs: number
   createdAt: string
 }
 
@@ -42,10 +45,11 @@ export function useSaveMaimemoConnectionMutation() {
   return useMutation({
     mutationFn: (secret?: string) => apiPut<MaimemoConnection>(
       '/maimemo/connection',
-      { provider: 'mock', secret: secret || null },
+      { provider: 'maimemo', secret: secret || null },
     ),
-    onSuccess: (connection) => {
+    onSuccess: async (connection) => {
       queryClient.setQueryData(connectionQueryKey, connection)
+      await queryClient.resetQueries({ queryKey: vocabularyProfileQueryKey })
     },
   })
 }

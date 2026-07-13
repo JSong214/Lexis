@@ -47,7 +47,10 @@ class MaimemoSyncSnapshot(Base):
     new_words: Mapped[list[str]] = mapped_column(JSON)
     fuzzy_words: Mapped[list[str]] = mapped_column(JSON)
     mastered_words_sample: Mapped[list[str]] = mapped_column(JSON)
-    mastered_word_count: Mapped[int] = mapped_column(Integer)
+    tracked_word_count: Mapped[int] = mapped_column(Integer)
+    daily_finished_count: Mapped[int] = mapped_column(Integer, default=0)
+    daily_total_count: Mapped[int] = mapped_column(Integer, default=0)
+    daily_study_time_ms: Mapped[int] = mapped_column(Integer, default=0)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
@@ -67,5 +70,8 @@ class VocabularyProfile(Base):
     new_words: Mapped[list[str]] = mapped_column(JSON)
     fuzzy_words: Mapped[list[str]] = mapped_column(JSON)
     mastered_words_sample: Mapped[list[str]] = mapped_column(JSON)
-    mastered_word_count: Mapped[int] = mapped_column(Integer)
+    tracked_word_count: Mapped[int] = mapped_column(Integer)
+    daily_finished_count: Mapped[int] = mapped_column(Integer, default=0)
+    daily_total_count: Mapped[int] = mapped_column(Integer, default=0)
+    daily_study_time_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

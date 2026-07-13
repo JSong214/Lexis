@@ -50,3 +50,16 @@ npm run build
 
 The current authentication slice does not call an LLM. OpenRouter configuration
 will be added with the lesson-generation slice.
+## Real Maimemo sync
+
+Lexis stores each account's Maimemo Open API token encrypted in PostgreSQL. The
+backend uses the token only for read-only study endpoints.
+
+```dotenv
+MAIMEMO_BASE_URL=https://open.maimemo.com/open/api/v1
+MAIMEMO_TIMEOUT_SECONDS=30
+```
+
+The real adapter reads today's items and study records, then normalizes them to
+`newWords`, `fuzzyWords`, `masteredWordsSample`, and `trackedWordCount`.
+It never calls Maimemo write endpoints.

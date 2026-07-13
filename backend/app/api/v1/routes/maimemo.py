@@ -8,7 +8,7 @@ from app.api.dependencies import CurrentUser
 from app.core.secret_cipher import SecretCipher, get_secret_cipher
 from app.db.session import get_db
 from app.models import MaimemoConnection, MaimemoSyncSnapshot, VocabularyProfile
-from app.providers.maimemo import MaimemoSyncProvider, get_maimemo_sync_provider
+from app.providers.maimemo import MaimemoProviderError, build_maimemo_sync_provider
 from app.schemas.maimemo import (
     ConnectionResponse,
     ConnectionUpdate,
@@ -18,7 +18,6 @@ from app.schemas.maimemo import (
 router = APIRouter()
 Database = Annotated[AsyncSession, Depends(get_db)]
 Cipher = Annotated[SecretCipher | None, Depends(get_secret_cipher)]
-SyncProvider = Annotated[MaimemoSyncProvider, Depends(get_maimemo_sync_provider)]
 
 
 def connection_response(connection: MaimemoConnection | None) -> ConnectionResponse:
@@ -29,10 +28,11 @@ def connection_response(connection: MaimemoConnection | None) -> ConnectionRespo
             secret_saved=False,
             updated_at=None,
         )
+    secret_saved = connection.encrypted_secret is not None
     return ConnectionResponse(
-        configured=True,
+        configured=connection.provider == "mock" or secret_saved,
         provider=connection.provider,
-        secret_saved=connection.encrypted_secret is not None,
+        secret_saved=secret_saved,
         updated_at=connection.updated_at,
     )
 
@@ -78,7 +78,7 @@ async def update_connection(
 async def sync_maimemo(
     current_user: CurrentUser,
     db: Database,
-    provider: SyncProvider,
+    cipher: Cipher,
 ) -> VocabularyProfile:
     connection = await db.scalar(
         select(MaimemoConnection).where(MaimemoConnection.user_id == current_user.id)
@@ -89,15 +89,46 @@ async def sync_maimemo(
             detail="Configure Maimemo before syncing",
         )
 
-    result = await provider.sync()
+    token: str | None = None
+    if connection.provider == "maimemo":
+        if connection.encrypted_secret is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Save a Maimemo token before syncing",
+            )
+        if cipher is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Secret encryption is not configured",
+            )
+        try:
+            token = cipher.decrypt(connection.encrypted_secret)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Stored Maimemo token could not be decrypted",
+            ) from error
+
+    try:
+        provider = build_maimemo_sync_provider(connection.provider)
+        result = await provider.sync(token)
+    except MaimemoProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
+
     snapshot = MaimemoSyncSnapshot(
         user_id=current_user.id,
         connection_id=connection.id,
-        provider=connection.provider,
+        provider=provider.name,
         new_words=result.new_words,
         fuzzy_words=result.fuzzy_words,
         mastered_words_sample=result.mastered_words_sample,
-        mastered_word_count=result.mastered_word_count,
+        tracked_word_count=result.tracked_word_count,
+        daily_finished_count=result.daily_finished_count,
+        daily_total_count=result.daily_total_count,
+        daily_study_time_ms=result.daily_study_time_ms,
     )
     db.add(snapshot)
     await db.flush()
@@ -107,7 +138,10 @@ async def sync_maimemo(
         new_words=result.new_words,
         fuzzy_words=result.fuzzy_words,
         mastered_words_sample=result.mastered_words_sample,
-        mastered_word_count=result.mastered_word_count,
+        tracked_word_count=result.tracked_word_count,
+        daily_finished_count=result.daily_finished_count,
+        daily_total_count=result.daily_total_count,
+        daily_study_time_ms=result.daily_study_time_ms,
     )
     db.add(profile)
     await db.commit()
@@ -120,12 +154,24 @@ async def get_vocabulary_profile(
     current_user: CurrentUser,
     db: Database,
 ) -> VocabularyProfile:
-    profile = await db.scalar(
-        select(VocabularyProfile)
-        .where(VocabularyProfile.user_id == current_user.id)
-        .order_by(VocabularyProfile.created_at.desc())
-        .limit(1)
+    connection = await db.scalar(
+        select(MaimemoConnection).where(MaimemoConnection.user_id == current_user.id)
     )
+    profile = None
+    if connection is not None:
+        profile = await db.scalar(
+            select(VocabularyProfile)
+            .join(
+                MaimemoSyncSnapshot,
+                MaimemoSyncSnapshot.id == VocabularyProfile.snapshot_id,
+            )
+            .where(
+                VocabularyProfile.user_id == current_user.id,
+                MaimemoSyncSnapshot.provider == connection.provider,
+            )
+            .order_by(VocabularyProfile.created_at.desc())
+            .limit(1)
+        )
     if profile is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

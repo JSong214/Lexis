@@ -13,6 +13,7 @@ from app.models import (
     ContextMasteryState,
     ExerciseFeedback,
     LessonAttempt,
+    MaimemoConnection,
     MaimemoSyncSnapshot,
     VocabularyProfile,
 )
@@ -146,12 +147,24 @@ async def generate_lesson(
     db: Database,
     provider: Provider,
 ) -> ContextLessonResponse:
-    profile = await db.scalar(
-        select(VocabularyProfile)
-        .where(VocabularyProfile.user_id == current_user.id)
-        .order_by(VocabularyProfile.created_at.desc())
-        .limit(1)
+    connection = await db.scalar(
+        select(MaimemoConnection).where(MaimemoConnection.user_id == current_user.id)
     )
+    profile = None
+    if connection is not None:
+        profile = await db.scalar(
+            select(VocabularyProfile)
+            .join(
+                MaimemoSyncSnapshot,
+                MaimemoSyncSnapshot.id == VocabularyProfile.snapshot_id,
+            )
+            .where(
+                VocabularyProfile.user_id == current_user.id,
+                MaimemoSyncSnapshot.provider == connection.provider,
+            )
+            .order_by(VocabularyProfile.created_at.desc())
+            .limit(1)
+        )
     if profile is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -186,7 +199,7 @@ async def generate_lesson(
                 exam_goal=payload.exam_goal,
                 selected_words=selected_words,
                 mastered_words_sample=profile.mastered_words_sample,
-                mastered_word_count=profile.mastered_word_count,
+                tracked_word_count=profile.tracked_word_count,
             )
         )
     except LLMProviderError as error:

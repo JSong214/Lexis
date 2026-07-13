@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.core.config import Settings, get_settings
 from app.schemas.lesson import (
@@ -21,7 +21,7 @@ class LessonGenerationContext:
     exam_goal: str
     selected_words: list[str]
     mastered_words_sample: list[str]
-    mastered_word_count: int
+    tracked_word_count: int
 
 
 @dataclass(frozen=True)
@@ -129,6 +129,7 @@ class MockLLMProvider:
                 Exercise(
                     type="output",
                     question="Write one sentence using a target word.",
+                    options=[],
                     expected_answer="A relevant sentence using one target word.",
                     explanation_zh="答案应在清晰语境中正确使用目标词。",
                 ),
@@ -175,11 +176,15 @@ class MockLLMProvider:
 
 
 class FeedbackPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     is_correct: bool
     feedback_text: str
 
 
 class SummaryPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     summary: str
 
 
@@ -258,7 +263,24 @@ class OpenRouterLLMProvider:
                 raise TypeError("OpenRouter message content is not text")
             return response_model.model_validate_json(message_content)
         except httpx.HTTPStatusError as exc:
-            raise LLMProviderError(f"OpenRouter returned HTTP {exc.response.status_code}") from exc
+            detail = ""
+            try:
+                error_payload = exc.response.json().get("error", {})
+                error_message = error_payload.get("message")
+                metadata = error_payload.get("metadata", {})
+                raw_message = metadata.get("raw") if isinstance(metadata, dict) else None
+                messages = [
+                    message
+                    for message in (error_message, raw_message)
+                    if isinstance(message, str) and message
+                ]
+                if messages:
+                    detail = ": " + " | ".join(messages)[:300]
+            except (AttributeError, TypeError, ValueError):
+                pass
+            raise LLMProviderError(
+                f"OpenRouter returned HTTP {exc.response.status_code}{detail}"
+            ) from exc
         except httpx.RequestError as exc:
             raise LLMProviderError("OpenRouter request failed") from exc
         except (KeyError, IndexError, TypeError, ValueError, ValidationError) as exc:
@@ -285,7 +307,7 @@ class OpenRouterLLMProvider:
                     "readingWordRange": [minimum, maximum],
                     "selectedWords": context.selected_words,
                     "masteredWordsForContextOnly": context.mastered_words_sample,
-                    "masteredWordCount": context.mastered_word_count,
+                    "trackedWordCount": context.tracked_word_count,
                 },
                 ensure_ascii=False,
             ),

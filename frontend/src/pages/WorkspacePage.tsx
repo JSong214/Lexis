@@ -55,7 +55,7 @@ export function WorkspacePage() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             {configured
-              ? <PrimaryButton disabled={syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()}>{syncMaimemo.isPending ? 'Syncing…' : 'Sync mock vocabulary'}</PrimaryButton>
+              ? <PrimaryButton disabled={syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()}>{syncMaimemo.isPending ? 'Syncing…' : 'Sync Maimemo now'}</PrimaryButton>
               : <Link className="inline-flex min-h-11 items-center rounded-lg bg-lexis px-5 text-sm font-semibold text-white" to="/app/settings/connection">Open connection settings</Link>}
           </div>
           {syncMaimemo.error instanceof Error && <p className="mt-4 text-xs text-danger">{syncMaimemo.error.message}</p>}
@@ -71,14 +71,16 @@ export function WorkspacePage() {
         <div className="grid gap-5">
           <Card className="p-5">
             <div className="flex items-start justify-between gap-4">
-              <SectionHeading subtitle="Saved from the latest MockMaimemoSyncProvider snapshot.">Vocabulary profile</SectionHeading>
+              <SectionHeading subtitle="Saved from the latest read-only Maimemo Open API snapshot.">Vocabulary profile</SectionHeading>
               <StatusChip>Ready</StatusChip>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
               <MetricTile label="New words" note="from sync" value={String(profile.data.newWords.length)} />
               <MetricTile label="Review" note="needs context" value={String(profile.data.fuzzyWords.length)} />
               <MetricTile label="Mastered sample" note="context only" value={String(profile.data.masteredWordsSample.length)} />
-              <MetricTile label="Mastered count" note="reference" value={profile.data.masteredWordCount.toLocaleString()} />
+              <MetricTile label="Tracked words" note="Maimemo records" value={profile.data.trackedWordCount.toLocaleString()} />
+              <MetricTile label="Today" note="finished / total" value={`${profile.data.dailyFinishedCount} / ${profile.data.dailyTotalCount}`} />
+              <MetricTile label="Study time" note="today" value={`${Math.round(profile.data.dailyStudyTimeMs / 60000)} min`} />
             </div>
           </Card>
           <Card className="p-5">
@@ -99,7 +101,7 @@ export function WorkspacePage() {
         <div className="grid content-start gap-5">
           <Card className="p-5">
             <SectionHeading subtitle="Refreshes this account's snapshot and vocabulary profile.">Maimemo sync</SectionHeading>
-            <p className="mt-4 text-xs text-ink-muted">Provider: MockMaimemoSyncProvider</p>
+            <p className="mt-4 text-xs text-ink-muted">Provider: {connection.data?.provider ?? 'maimemo'}</p>
             <button className="mt-5 h-10 w-full rounded-lg border border-line bg-white text-sm font-semibold hover:bg-surface-muted disabled:opacity-50" disabled={syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()} type="button">{syncMaimemo.isPending ? 'Syncing…' : 'Sync again'}</button>
           </Card>
           <Card className="p-5">

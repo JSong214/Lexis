@@ -13,6 +13,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.models import User, UserSession  # noqa: F401
+from app.providers.llm import MockLLMProvider, get_llm_provider
 
 
 @pytest.fixture
@@ -41,6 +42,7 @@ def client() -> Iterator[TestClient]:
     test_cipher = SecretCipher(Fernet.generate_key().decode("utf-8"))
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_secret_cipher] = lambda: test_cipher
+    app.dependency_overrides[get_llm_provider] = MockLLMProvider
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

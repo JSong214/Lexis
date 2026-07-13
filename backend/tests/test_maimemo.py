@@ -55,7 +55,10 @@ def test_mock_sync_builds_vocabulary_profile(client: TestClient) -> None:
     ]
     assert profile["fuzzyWords"] == ["retain", "compile", "ambiguous", "scope"]
     assert profile["masteredWordsSample"] == ["stable", "fluent", "pattern", "contrast"]
-    assert profile["masteredWordCount"] == 3400
+    assert profile["trackedWordCount"] == 3400
+    assert profile["dailyFinishedCount"] == 18
+    assert profile["dailyTotalCount"] == 30
+    assert profile["dailyStudyTimeMs"] == 1_080_000
 
     latest = client.get("/api/v1/vocabulary/profile")
     assert latest.status_code == 200
@@ -74,3 +77,19 @@ def test_profile_is_isolated_by_user(client: TestClient) -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "No vocabulary profile is available"}
+
+
+def test_real_connection_requires_saved_token(client: TestClient) -> None:
+    register(client, "real-sync@example.com")
+
+    connection = client.put(
+        "/api/v1/maimemo/connection",
+        json={"provider": "maimemo"},
+    )
+
+    assert connection.status_code == 200
+    assert connection.json()["configured"] is False
+    assert connection.json()["provider"] == "maimemo"
+    sync = client.post("/api/v1/maimemo/sync")
+    assert sync.status_code == 409
+    assert sync.json() == {"detail": "Save a Maimemo token before syncing"}

@@ -19,7 +19,7 @@ class ApiModel(BaseModel):
 
 
 class ConnectionUpdate(BaseModel):
-    provider: Literal["mock"] = "mock"
+    provider: Literal["mock", "maimemo"] = "maimemo"
     secret: str | None = Field(default=None, max_length=4096)
 
 
@@ -36,5 +36,8 @@ class VocabularyProfileResponse(ApiModel):
     new_words: list[str]
     fuzzy_words: list[str]
     mastered_words_sample: list[str]
-    mastered_word_count: int
+    tracked_word_count: int
+    daily_finished_count: int
+    daily_total_count: int
+    daily_study_time_ms: int
     created_at: datetime

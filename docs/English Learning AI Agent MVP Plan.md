@@ -85,7 +85,9 @@ The sync output must include:
 - `newWords`: today's newly learned words.
 - `reviewWords` or `fuzzyWords`: words Maimemo asks the learner to review today, or words considered uncertain.
 - `masteredWordsSample`: a batch of mastered words that can participate in context generation.
-- `masteredWordCount`: vocabulary mastery count for display and difficulty reference.
+- `trackedWordCount`: Maimemo study-record count for display and difficulty reference; it is not an exact mastered-word total.
+- `dailyFinishedCount`, `dailyTotalCount`, `dailyStudyTimeMs`: Maimemo daily progress fields; beta data may be zero until the App initializes and auto-syncs the day.
+- `fuzzyWords`: recent words whose response is `VAGUE`/`FORGET` or whose study tag is `STICKING`; ordinary review words are not automatically fuzzy.
 
 The MVP strongly requires a mastered-word list sample, not only a mastered-word count. If the real Maimemo adapter cannot provide a mastered-word sample, that adapter is incomplete for the MVP.
 
@@ -141,7 +143,7 @@ cefrLevel
 newWords
 fuzzyWords
 masteredWordsSample
-masteredWordCount
+trackedWordCount
 userWordAdjustments
 generationConstraints
 ```

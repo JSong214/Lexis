@@ -33,7 +33,7 @@ def test_mock_provider_satisfies_all_cefr_ranges() -> None:
                     exam_goal="General English",
                     selected_words=["anchor", "estimate"],
                     mastered_words_sample=["stable"],
-                    mastered_word_count=3400,
+                    tracked_word_count=3400,
                 )
             )
         )

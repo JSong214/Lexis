@@ -20,6 +20,7 @@ class LessonApiModel(BaseModel):
         alias_generator=to_camel,
         from_attributes=True,
         populate_by_name=True,
+        extra="forbid",
     )
 
 
@@ -31,7 +32,7 @@ class WordAid(LessonApiModel):
 class Exercise(LessonApiModel):
     type: ExerciseType
     question: str
-    options: list[str] = Field(default_factory=list)
+    options: list[str]
     expected_answer: str
     explanation_zh: str
 
