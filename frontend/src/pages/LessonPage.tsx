@@ -137,9 +137,7 @@ export function LessonPage() {
                           ...current,
                           [index]: result,
                         }))
-                        toast.success(result.isCorrect ? 'Correct answer' : 'Answer saved for review')
                       },
-                      onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'The answer could not be saved.'),
                     },
                   )}
                 >

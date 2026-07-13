@@ -27,7 +27,7 @@ export interface VocabularyProfile {
 export const connectionQueryKey = ['maimemo', 'connection'] as const
 export const vocabularyProfileQueryKey = ['vocabulary', 'profile'] as const
 const MAIMEMO_AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000
-
+let syncInFlight: Promise<VocabularyProfile> | null = null
 export function useMaimemoConnectionQuery() {
   return useQuery({
     queryKey: connectionQueryKey,
@@ -60,7 +60,15 @@ export function useSaveMaimemoConnectionMutation() {
 export function useSyncMaimemoMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => apiPost<VocabularyProfile>('/maimemo/sync'),
+mutationFn: () => {
+      if (!syncInFlight) {
+        syncInFlight = apiPost<VocabularyProfile>('/maimemo/sync').finally(() => {
+          syncInFlight = null
+        })
+      }
+
+      return syncInFlight
+    },
     onSuccess: (profile) => {
       queryClient.setQueryData(vocabularyProfileQueryKey, profile)
     },
