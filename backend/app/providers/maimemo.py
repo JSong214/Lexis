@@ -10,6 +10,7 @@ from app.core.config import Settings, get_settings
 class MaimemoSyncResult:
     new_words: list[str]
     fuzzy_words: list[str]
+    practice_words: list[str]
     mastered_words_sample: list[str]
     tracked_word_count: int
     daily_finished_count: int = 0
@@ -34,6 +35,7 @@ class MockMaimemoSyncProvider:
         return MaimemoSyncResult(
             new_words=["anchor", "segment", "estimate", "criteria", "draft", "validate"],
             fuzzy_words=["retain", "compile", "ambiguous", "scope"],
+            practice_words=["review", "reinforce", "apply"],
             mastered_words_sample=["stable", "fluent", "pattern", "contrast"],
             tracked_word_count=3400,
             daily_finished_count=18,
@@ -192,6 +194,13 @@ class RealMaimemoSyncProvider:
         fuzzy_words = [
             word for word in fuzzy_candidates if word.casefold() not in new_word_keys
         ][:50]
+        fuzzy_word_keys = {word.casefold() for word in fuzzy_candidates}
+        practice_words = [
+            word
+            for word in unique_spellings(today_items)
+            if word.casefold() not in new_word_keys
+            and word.casefold() not in fuzzy_word_keys
+        ][:50]
         mastered_words_sample = unique_spellings(
             [
                 record
@@ -207,6 +216,7 @@ class RealMaimemoSyncProvider:
         return MaimemoSyncResult(
             new_words=new_words,
             fuzzy_words=fuzzy_words,
+            practice_words=practice_words,
             mastered_words_sample=mastered_words_sample,
             tracked_word_count=tracked_count,
             daily_finished_count=daily_finished_count,

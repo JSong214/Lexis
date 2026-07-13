@@ -109,6 +109,7 @@ def test_real_maimemo_provider_normalizes_read_only_study_data() -> None:
 
     assert result.new_words == ["anchor", "estimate"]
     assert result.fuzzy_words == ["retain", "fluent", "ambiguous"]
+    assert result.practice_words == ["review"]
     assert result.mastered_words_sample == ["stable", "fluent"]
     assert result.tracked_word_count == 123
     assert result.daily_finished_count == 12

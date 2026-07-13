@@ -54,6 +54,7 @@ def test_mock_sync_builds_vocabulary_profile(client: TestClient) -> None:
         "validate",
     ]
     assert profile["fuzzyWords"] == ["retain", "compile", "ambiguous", "scope"]
+    assert profile["practiceWords"] == ["review", "reinforce", "apply"]
     assert profile["masteredWordsSample"] == ["stable", "fluent", "pattern", "contrast"]
     assert profile["trackedWordCount"] == 3400
     assert profile["dailyFinishedCount"] == 18

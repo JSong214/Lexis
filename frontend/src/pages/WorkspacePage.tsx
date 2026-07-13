@@ -29,7 +29,7 @@ export function WorkspacePage() {
   const vocabularyGroups = useMemo(() => profile.data ? [
     { title: 'New Words', note: 'Course focus candidates', words: profile.data.newWords },
     { title: 'Fuzzy / Review Words', note: 'Worth practicing in context', words: profile.data.fuzzyWords },
-    { title: 'Mastered Sample', note: 'Context material', words: profile.data.masteredWordsSample },
+    { title: 'Practice Words', note: 'Today excluding new and review', words: profile.data.practiceWords },
   ] : [], [profile.data])
 
   function toggleWord(word: string) {
@@ -79,7 +79,7 @@ export function WorkspacePage() {
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
               <MetricTile label="New words" note="from sync" value={String(profile.data.newWords.length)} />
               <MetricTile label="Review" note="needs context" value={String(profile.data.fuzzyWords.length)} />
-              <MetricTile label="Mastered sample" note="context only" value={String(profile.data.masteredWordsSample.length)} />
+              <MetricTile label="Practice words" note="today excluding new/review" value={String(profile.data.practiceWords.length)} />
               <MetricTile label="Tracked words" note="Maimemo records" value={profile.data.trackedWordCount.toLocaleString()} />
               <MetricTile label="Today" note="finished / total" value={`${profile.data.dailyFinishedCount} / ${profile.data.dailyTotalCount}`} />
               <MetricTile label="Study time" note="today" value={`${Math.round(profile.data.dailyStudyTimeMs / 60000)} min`} />

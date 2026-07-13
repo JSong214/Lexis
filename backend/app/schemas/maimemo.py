@@ -35,6 +35,7 @@ class VocabularyProfileResponse(ApiModel):
     snapshot_id: uuid.UUID
     new_words: list[str]
     fuzzy_words: list[str]
+    practice_words: list[str]
     mastered_words_sample: list[str]
     tracked_word_count: int
     daily_finished_count: int

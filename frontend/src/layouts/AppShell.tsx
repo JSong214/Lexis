@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router'
 
 import { Brand, StatusChip } from '../components/ui'
 import { useCurrentUserQuery, useLogoutMutation } from '../features/auth/auth'
+import { useAutoSyncMaimemo, useMaimemoConnectionQuery } from '../features/maimemo/maimemo'
 import { useHealthQuery } from '../features/system/health'
 
 const navigation = [
@@ -15,6 +16,8 @@ export function AppShell() {
   const navigate = useNavigate()
   const healthQuery = useHealthQuery()
   const currentUser = useCurrentUserQuery()
+  const connection = useMaimemoConnectionQuery()
+  useAutoSyncMaimemo(connection.data?.configured ?? false)
   const logoutMutation = useLogoutMutation()
   const healthLabel = healthQuery.isPending ? 'Connecting' : healthQuery.isError ? 'API offline' : 'API connected'
 
