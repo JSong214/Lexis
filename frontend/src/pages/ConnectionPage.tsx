@@ -3,13 +3,33 @@ import { type FormEvent } from 'react'
 
 import { Card, MetricTile, PageTitle, PrimaryButton, SectionHeading, StatusChip } from '../components/ui'
 import {
+  type CefrLevel,
+  type LearningGoal,
+  useCurrentUserQuery,
+  useUpdatePreferencesMutation,
+} from '../features/auth/auth'
+import {
   useMaimemoConnectionQuery,
   useSaveMaimemoConnectionMutation,
   useSyncMaimemoMutation,
   useVocabularyProfileQuery,
 } from '../features/maimemo/maimemo'
 
+const CEFR_LEVELS: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+const LEARNING_GOALS: LearningGoal[] = [
+  'General English',
+  'CET-4',
+  'CET-6',
+  'IELTS',
+  'TOEFL',
+  'Postgraduate Entrance English',
+  'Academic English',
+  'Workplace English',
+]
+
 export function ConnectionPage() {
+  const currentUser = useCurrentUserQuery()
+  const updatePreferences = useUpdatePreferencesMutation()
   const connection = useMaimemoConnectionQuery()
   const profile = useVocabularyProfileQuery()
   const saveConnection = useSaveMaimemoConnectionMutation()
@@ -20,6 +40,18 @@ export function ConnectionPage() {
     : syncMaimemo.error instanceof Error
       ? syncMaimemo.error.message
       : ''
+  const preferencesError = updatePreferences.error instanceof Error
+    ? updatePreferences.error.message
+    : ''
+
+  function handlePreferencesSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    updatePreferences.mutate({
+      cefr_level: String(formData.get('cefrLevel')) as CefrLevel,
+      learning_goal: String(formData.get('learningGoal')) as LearningGoal,
+    })
+  }
 
   function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -30,8 +62,41 @@ export function ConnectionPage() {
 
   return (
     <div className="pt-3">
-      <PageTitle subtitle="Connect a vocabulary source, then create a normalized profile from one sync.">Maimemo Connection</PageTitle>
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.95fr)]">
+      <PageTitle subtitle="Manage your learning profile and connected vocabulary source.">Settings</PageTitle>
+      <Card className="mt-5 p-5 md:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <SectionHeading subtitle="These preferences set the difficulty and goal for every new lesson.">Learning profile</SectionHeading>
+          <StatusChip tone={updatePreferences.isSuccess ? 'success' : 'default'}>{updatePreferences.isSuccess ? 'Saved' : 'Account settings'}</StatusChip>
+        </div>
+        {currentUser.data && (
+          <form className="mt-6" key={`${currentUser.data.cefr_level}-${currentUser.data.learning_goal}`} onSubmit={handlePreferencesSave}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="grid gap-2 text-xs font-semibold">
+                Email
+                <input className="h-12 rounded-lg border border-line bg-surface-muted px-4 text-sm font-normal text-ink-muted" disabled value={currentUser.data.email} />
+              </label>
+              <label className="grid gap-2 text-xs font-semibold">
+                CEFR level
+                <select className="h-12 rounded-lg border border-line bg-white px-4 text-sm font-normal outline-none focus:border-lexis" defaultValue={currentUser.data.cefr_level} disabled={updatePreferences.isPending} name="cefrLevel">
+                  {CEFR_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-2 text-xs font-semibold">
+                Learning goal
+                <select className="h-12 rounded-lg border border-line bg-white px-4 text-sm font-normal outline-none focus:border-lexis" defaultValue={currentUser.data.learning_goal} disabled={updatePreferences.isPending} name="learningGoal">
+                  {LEARNING_GOALS.map((goal) => <option key={goal} value={goal}>{goal}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <PrimaryButton className="w-full sm:w-auto" disabled={updatePreferences.isPending} type="submit">{updatePreferences.isPending ? 'Saving…' : 'Save learning profile'}</PrimaryButton>
+            </div>
+          </form>
+        )}
+        {currentUser.isPending && <p className="mt-6 text-sm text-ink-muted">Loading account settings…</p>}
+        {preferencesError && <p className="mt-4 rounded-lg bg-danger-soft p-3 text-xs text-danger" role="alert">{preferencesError}</p>}
+      </Card>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.95fr)]">
         <Card className="p-5 md:p-8">
           <div className="flex items-start justify-between gap-4">
             <SectionHeading subtitle="Uses the read-only Maimemo Open API with your encrypted token.">Connection setup</SectionHeading>

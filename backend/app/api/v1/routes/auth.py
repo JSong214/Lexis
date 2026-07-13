@@ -16,7 +16,7 @@ from app.core.security import (
 )
 from app.db.session import get_db
 from app.models import User, UserSession
-from app.schemas.auth import AuthCredentials, UserResponse
+from app.schemas.auth import AuthCredentials, UserPreferencesUpdate, UserResponse
 
 router = APIRouter(prefix="/auth")
 settings = get_settings()
@@ -121,4 +121,17 @@ async def logout(
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: CurrentUser) -> User:
+    return current_user
+
+
+@router.patch("/me/preferences", response_model=UserResponse)
+async def update_preferences(
+    payload: UserPreferencesUpdate,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    current_user.cefr_level = payload.cefr_level
+    current_user.learning_goal = payload.learning_goal
+    await db.commit()
+    await db.refresh(current_user)
     return current_user

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
+import { useCurrentUserQuery } from '../features/auth/auth'
 import { useGenerateLessonMutation } from '../features/lessons/lessons'
 import { ApiError } from '../lib/api-client'
 import { Card, MetricTile, PageTitle, PrimaryButton, SectionHeading, StatusChip, WordChip } from '../components/ui'
@@ -12,6 +13,7 @@ import {
 
 export function WorkspacePage() {
   const navigate = useNavigate()
+  const currentUser = useCurrentUserQuery()
   const generateLesson = useGenerateLessonMutation()
   const connection = useMaimemoConnectionQuery()
   const profile = useVocabularyProfileQuery()
@@ -39,7 +41,7 @@ export function WorkspacePage() {
   const profileMissing = profile.error instanceof ApiError && profile.error.status === 404
   const configured = connection.data?.configured ?? false
 
-  if (profile.isPending || connection.isPending) {
+  if (profile.isPending || connection.isPending || currentUser.isPending) {
     return <Card className="p-8"><StatusChip tone="default">Loading workspace</StatusChip><p className="mt-4 text-sm text-ink-muted">Checking your latest vocabulary profile…</p></Card>
   }
 
@@ -107,7 +109,8 @@ export function WorkspacePage() {
           <Card className="p-5">
             <StatusChip>Schema validated</StatusChip>
             <SectionHeading subtitle="Uses the configured LLMProvider and validates the structured ContextLesson before saving.">Lesson generation</SectionHeading>
-            <PrimaryButton className="mt-5 w-full" disabled={selectedWords.length === 0 || generateLesson.isPending} onClick={() => generateLesson.mutate({ cefrLevel: 'B2', examGoal: 'IELTS reading', selectedWords }, { onSuccess: (lesson) => navigate('/app/lessons/' + lesson.id) })}>{generateLesson.isPending ? 'Generating…' : 'Generate lesson'}</PrimaryButton>
+            <p className="mt-4 text-xs text-ink-muted">{currentUser.data ? `${currentUser.data.cefr_level} · ${currentUser.data.learning_goal}` : 'Learning profile unavailable'}</p>
+            <PrimaryButton className="mt-5 w-full" disabled={!currentUser.data || selectedWords.length === 0 || generateLesson.isPending} onClick={() => currentUser.data && generateLesson.mutate({ cefrLevel: currentUser.data.cefr_level, examGoal: currentUser.data.learning_goal, selectedWords }, { onSuccess: (lesson) => navigate('/app/lessons/' + lesson.id) })}>{generateLesson.isPending ? 'Generating…' : 'Generate lesson'}</PrimaryButton>
           </Card>
         </div>
       </div>

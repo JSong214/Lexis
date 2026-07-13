@@ -175,6 +175,8 @@ CEFR A1-C2 全阶段英语学习者。
 - FR11: 系统必须提供 `MockMaimemoSyncProvider`，用于无真实接口时跑通完整闭环。
 - FR12: 系统必须预留 `RealMaimemoSyncProvider`。
 - FR13: 同步输出必须标准化为 `newWords`、`reviewWords` 或 `fuzzyWords`、`masteredWordsSample`、`trackedWordCount`。
+- FR13a: Settings 必须允许当前用户保存账号级 `CEFR` 与学习目标，并在后续课程生成中使用这些偏好。
+- FR13b: `CEFR` 仅允许 A1-C2；学习目标仅允许 General English、CET-4、CET-6、IELTS、TOEFL、Postgraduate Entrance English、Academic English、Workplace English。
 - FR14: `masteredWordsSample` 是 MVP 必需数据。若真实接口无法提供，真实 adapter 不算完成。
 - FR15: Lexis 不得调用 Maimemo 写入学习状态。
 

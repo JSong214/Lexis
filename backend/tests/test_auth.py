@@ -16,6 +16,8 @@ def test_register_creates_http_only_session_and_returns_current_user(
     user = register(client)
 
     assert user["email"] == "learner@example.com"
+    assert user["cefr_level"] == "B2"
+    assert user["learning_goal"] == "General English"
     assert "password" not in user
     assert "lexis_session" in client.cookies
     set_cookie = client.post(
@@ -31,6 +33,33 @@ def test_register_creates_http_only_session_and_returns_current_user(
     response = client.get("/api/v1/auth/me")
     assert response.status_code == 200
     assert response.json()["id"] == user["id"]
+
+
+def test_learning_preferences_can_be_updated(client: TestClient) -> None:
+    register(client)
+
+    response = client.patch(
+        "/api/v1/auth/me/preferences",
+        json={"cefr_level": "C1", "learning_goal": "CET-4"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["cefr_level"] == "C1"
+    assert response.json()["learning_goal"] == "CET-4"
+    current = client.get("/api/v1/auth/me")
+    assert current.json()["cefr_level"] == "C1"
+    assert current.json()["learning_goal"] == "CET-4"
+
+
+def test_learning_preferences_reject_unknown_values(client: TestClient) -> None:
+    register(client)
+
+    response = client.patch(
+        "/api/v1/auth/me/preferences",
+        json={"cefr_level": "B3", "learning_goal": "Unknown exam"},
+    )
+
+    assert response.status_code == 422
 
 
 def test_duplicate_registration_is_rejected(client: TestClient) -> None:
