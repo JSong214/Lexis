@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { toast } from 'sonner'
 
 import { useCurrentUserQuery } from '../features/auth/auth'
 import { useGenerateLessonMutation } from '../features/lessons/lessons'
@@ -38,6 +39,13 @@ export function WorkspacePage() {
       : [...current, word])
   }
 
+  function handleSync() {
+    syncMaimemo.mutate(undefined, {
+      onSuccess: (syncedProfile) => toast.success('Maimemo synced · ' + (syncedProfile.newWords.length + syncedProfile.fuzzyWords.length) + ' focus words'),
+      onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'Maimemo sync failed.'),
+    })
+  }
+
   const profileMissing = profile.error instanceof ApiError && profile.error.status === 404
   const configured = connection.data?.configured ?? false
 
@@ -57,7 +65,7 @@ export function WorkspacePage() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             {configured
-              ? <PrimaryButton disabled={syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()}>{syncMaimemo.isPending ? 'Syncing…' : 'Sync Maimemo now'}</PrimaryButton>
+              ? <PrimaryButton disabled={syncMaimemo.isPending} onClick={handleSync}>{syncMaimemo.isPending ? 'Syncing…' : 'Sync Maimemo now'}</PrimaryButton>
               : <Link className="inline-flex min-h-11 items-center rounded-lg bg-lexis px-5 text-sm font-semibold text-white" to="/app/settings/connection">Open connection settings</Link>}
           </div>
           {syncMaimemo.error instanceof Error && <p className="mt-4 text-xs text-danger">{syncMaimemo.error.message}</p>}
@@ -104,13 +112,19 @@ export function WorkspacePage() {
           <Card className="p-5">
             <SectionHeading subtitle="Refreshes this account's snapshot and vocabulary profile.">Maimemo sync</SectionHeading>
             <p className="mt-4 text-xs text-ink-muted">Provider: {connection.data?.provider ?? 'maimemo'}</p>
-            <button className="mt-5 h-10 w-full rounded-lg border border-line bg-white text-sm font-semibold hover:bg-surface-muted disabled:opacity-50" disabled={syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()} type="button">{syncMaimemo.isPending ? 'Syncing…' : 'Sync again'}</button>
+            <button className="mt-5 h-10 w-full rounded-lg border border-line bg-white text-sm font-semibold hover:bg-surface-muted disabled:opacity-50" disabled={syncMaimemo.isPending} onClick={handleSync} type="button">{syncMaimemo.isPending ? 'Syncing…' : 'Sync again'}</button>
           </Card>
           <Card className="p-5">
             <StatusChip>Schema validated</StatusChip>
             <SectionHeading subtitle="Uses the configured LLMProvider and validates the structured ContextLesson before saving.">Lesson generation</SectionHeading>
             <p className="mt-4 text-xs text-ink-muted">{currentUser.data ? `${currentUser.data.cefr_level} · ${currentUser.data.learning_goal}` : 'Learning profile unavailable'}</p>
-            <PrimaryButton className="mt-5 w-full" disabled={!currentUser.data || selectedWords.length === 0 || generateLesson.isPending} onClick={() => currentUser.data && generateLesson.mutate({ cefrLevel: currentUser.data.cefr_level, examGoal: currentUser.data.learning_goal, selectedWords }, { onSuccess: (lesson) => navigate('/app/lessons/' + lesson.id) })}>{generateLesson.isPending ? 'Generating…' : 'Generate lesson'}</PrimaryButton>
+            <PrimaryButton className="mt-5 w-full" disabled={!currentUser.data || selectedWords.length === 0 || generateLesson.isPending} onClick={() => currentUser.data && generateLesson.mutate({ cefrLevel: currentUser.data.cefr_level, examGoal: currentUser.data.learning_goal, selectedWords }, {
+                onSuccess: (lesson) => {
+                  toast.success('Lesson generated')
+                  navigate('/app/lessons/' + lesson.id)
+                },
+                onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'Lesson generation failed.'),
+              })}>{generateLesson.isPending ? 'Generating…' : 'Generate lesson'}</PrimaryButton>
           </Card>
         </div>
       </div>

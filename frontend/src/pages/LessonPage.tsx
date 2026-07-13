@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { toast } from 'sonner'
 
 import { Card, PrimaryButton, SectionHeading, StatusChip, WordChip } from '../components/ui'
 import {
@@ -131,10 +132,14 @@ export function LessonPage() {
                   onClick={() => submitAnswer.mutate(
                     { exerciseIndex: index, answer },
                     {
-                      onSuccess: (result) => setSubmittedFeedback((current) => ({
-                        ...current,
-                        [index]: result,
-                      })),
+                      onSuccess: (result) => {
+                        setSubmittedFeedback((current) => ({
+                          ...current,
+                          [index]: result,
+                        }))
+                        toast.success(result.isCorrect ? 'Correct answer' : 'Answer saved for review')
+                      },
+                      onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'The answer could not be saved.'),
                     },
                   )}
                 >
@@ -160,7 +165,11 @@ export function LessonPage() {
           <PrimaryButton
             disabled={savedFeedback.size !== data.content.exercises.length || completeLesson.isPending}
             onClick={() => completeLesson.mutate(undefined, {
-              onSuccess: () => navigate('/app/lessons/' + data.id + '/complete'),
+              onSuccess: () => {
+                toast.success('Lesson completed')
+                navigate('/app/lessons/' + data.id + '/complete')
+              },
+              onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'The lesson could not be completed.'),
             })}
           >
             {completeLesson.isPending ? 'Finishing…' : 'Complete lesson'}

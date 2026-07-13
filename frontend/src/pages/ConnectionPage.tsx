@@ -1,5 +1,6 @@
 import { ShieldCheck } from '@phosphor-icons/react'
 import { type FormEvent } from 'react'
+import { toast } from 'sonner'
 
 import { Card, MetricTile, PageTitle, PrimaryButton, SectionHeading, StatusChip } from '../components/ui'
 import {
@@ -50,6 +51,9 @@ export function ConnectionPage() {
     updatePreferences.mutate({
       cefr_level: String(formData.get('cefrLevel')) as CefrLevel,
       learning_goal: String(formData.get('learningGoal')) as LearningGoal,
+    }, {
+      onSuccess: () => toast.success('Learning profile saved'),
+      onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'Learning profile could not be saved.'),
     })
   }
 
@@ -57,7 +61,13 @@ export function ConnectionPage() {
     event.preventDefault()
     const form = event.currentTarget
     const secret = String(new FormData(form).get('secret') ?? '').trim()
-    saveConnection.mutate(secret, { onSuccess: () => form.reset() })
+    saveConnection.mutate(secret, {
+      onSuccess: () => {
+        form.reset()
+        toast.success('Maimemo connection saved')
+      },
+      onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'Maimemo connection could not be saved.'),
+    })
   }
 
   return (
@@ -128,7 +138,10 @@ export function ConnectionPage() {
             <MetricTile label="Review" value={String(profile.data?.fuzzyWords.length ?? 0)} />
             <MetricTile label="Tracked" value={(profile.data?.trackedWordCount ?? 0).toLocaleString()} />
           </div>
-          <button className="mt-6 h-10 w-full rounded-lg border border-line bg-white text-sm font-semibold transition hover:bg-surface-muted disabled:opacity-50" disabled={!configured || syncMaimemo.isPending} onClick={() => syncMaimemo.mutate()} type="button">
+          <button className="mt-6 h-10 w-full rounded-lg border border-line bg-white text-sm font-semibold transition hover:bg-surface-muted disabled:opacity-50" disabled={!configured || syncMaimemo.isPending} onClick={() => syncMaimemo.mutate(undefined, {
+            onSuccess: (syncedProfile) => toast.success('Maimemo synced · ' + (syncedProfile.newWords.length + syncedProfile.fuzzyWords.length) + ' focus words'),
+            onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'Maimemo sync failed.'),
+          })} type="button">
             {syncMaimemo.isPending ? 'Syncing…' : 'Sync Maimemo now'}
           </button>
           <p className="mt-3 text-center text-[11px] text-ink-muted">{profile.data ? 'Latest profile saved to your account' : 'No successful sync yet'}</p>

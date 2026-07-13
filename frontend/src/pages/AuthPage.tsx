@@ -1,6 +1,7 @@
 import { LockKey, WarningCircle } from '@phosphor-icons/react'
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { toast } from 'sonner'
 
 import { Brand, Card, PrimaryButton, StatusChip } from '../components/ui'
 import { useLoginMutation, useRegisterMutation } from '../features/auth/auth'
@@ -35,7 +36,13 @@ export function AuthPage({ mode }: AuthPageProps) {
     setLocalError('')
     mutation.mutate(
       { email, password },
-      { onSuccess: () => navigate('/app/workspace', { replace: true }) },
+      {
+        onSuccess: () => {
+          toast.success(isLogin ? 'Welcome back' : 'Account created')
+          navigate('/app/workspace', { replace: true })
+        },
+        onError: (requestError) => toast.error(requestError instanceof Error ? requestError.message : 'Authentication failed.'),
+      },
     )
   }
 

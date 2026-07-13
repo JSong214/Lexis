@@ -1,5 +1,6 @@
 import { SignOut } from '@phosphor-icons/react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
+import { toast } from 'sonner'
 
 import { Brand, StatusChip } from '../components/ui'
 import { useCurrentUserQuery, useLogoutMutation } from '../features/auth/auth'
@@ -23,7 +24,11 @@ export function AppShell() {
 
   function handleLogout() {
     logoutMutation.mutate(undefined, {
-      onSuccess: () => navigate('/login', { replace: true }),
+      onSuccess: () => {
+        toast.success('Signed out')
+        navigate('/login', { replace: true })
+      },
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Sign out failed.'),
     })
   }
 
