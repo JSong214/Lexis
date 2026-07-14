@@ -74,7 +74,7 @@ def test_generate_and_read_valid_context_lesson(client: TestClient) -> None:
     metadata = lesson["generationMetadata"]
     assert metadata["provider"] == "mock"
     assert metadata["model"] == "mock"
-    assert metadata["prompt_version"] == "lesson-generation-v2"
+    assert metadata["prompt_version"] == "lesson-generation-v3"
     assert metadata["schema_version"] == "context-lesson-v1"
     assert lesson["content"]["targetWords"] == ["anchor", "estimate", "ambiguous"]
     assert "expectedAnswer" not in lesson["content"]["exercises"][0]

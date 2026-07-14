@@ -24,6 +24,7 @@ class LessonGenerationContext:
     mastered_words_sample: list[str]
     tracked_word_count: int
     vocabulary_selection: VocabularySelection | None = None
+    previous_validation_errors: tuple[str, ...] = ()
 
     @property
     def selection(self) -> VocabularySelection:
@@ -470,7 +471,13 @@ class OpenRouterLLMProvider:
         return await self._structured_completion(
             ContextLessonContent,
             system_prompt=(
-                "Create one CEFR-matched English context lesson. Return only the requested "
+                f"Create one CEFR-matched English context lesson for CEFR {context.cefr_level}. "
+                f"Hard constraint: readingText must contain between {minimum} and {maximum} "
+                "words, inclusive. Count words using whitespace-separated tokens, matching "
+                "the backend validator. Count the words before returning the final object and "
+                "revise the passage if it is outside this range; never exceed the maximum. "
+                "If previousValidationErrors is not empty, treat every listed error as a "
+                "required repair before returning the new object. Return only the requested "
                 "structured object. Include exactly four exercises with types "
                 "vocabulary_context, syntax, paragraph_logic, and output. Keep additional "
                 "unfamiliar words at five or fewer. Provide Chinese vocabulary aid, grammar "
@@ -492,7 +499,8 @@ class OpenRouterLLMProvider:
                 {
                     "cefrLevel": context.cefr_level,
                     "examGoal": context.exam_goal,
-                    "readingWordRange": [minimum, maximum],
+                    "readingWordRange": {"min": minimum, "max": maximum},
+                    "previousValidationErrors": list(context.previous_validation_errors),
                     "requiredTargetWords": context.selection.required_target_words,
                     "priorityWords": context.selection.priority_words,
                     "contextWords": context.selection.context_words,

@@ -28,6 +28,10 @@ def test_openrouter_provider_uses_bearer_auth_and_structured_output() -> None:
         payload = json.loads(request.content)
         assert payload["model"] == "provider/test-model"
         context_payload = json.loads(payload["messages"][1]["content"])
+        assert "CEFR B2" in payload["messages"][0]["content"]
+        assert "between 140 and 180 words" in payload["messages"][0]["content"]
+        assert context_payload["readingWordRange"] == {"min": 140, "max": 180}
+        assert context_payload["previousValidationErrors"] == []
         assert context_payload["requiredTargetWords"] == ["anchor", "estimate"]
         assert context_payload["priorityWords"] == []
         assert context_payload["contextWords"] == ["stable"]

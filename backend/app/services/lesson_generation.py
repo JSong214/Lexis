@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 
 from app.providers.llm import LessonGenerationContext, LLMProvider
@@ -7,11 +7,13 @@ from app.schemas.lesson import ContextLessonContent, Exercise
 from app.services.lesson_validation import (
     EXPECTED_GRADING_MODES,
     contains_word,
+    validate_context_lesson,
     validate_source_reference,
 )
 
-PROMPT_VERSION = "lesson-generation-v2"
+PROMPT_VERSION = "lesson-generation-v3"
 SCHEMA_VERSION = "context-lesson-v1"
+MAX_GENERATION_ATTEMPTS = 3
 WORD_TOKEN_PATTERN = re.compile(r"[A-Za-z]+(?:[-'][A-Za-z]+)*")
 
 
@@ -116,9 +118,32 @@ class LessonGenerationService:
 
     async def generate(self, context: LessonGenerationContext) -> GeneratedLesson:
         started_at = perf_counter()
-        content = normalize_generated_content(
-            await self.provider.generate_lesson(context)
-        )
+        current_context = context
+        retry_count = 0
+        content: ContextLessonContent | None = None
+
+        for attempt in range(MAX_GENERATION_ATTEMPTS):
+            content = normalize_generated_content(
+                await self.provider.generate_lesson(current_context)
+            )
+            validation_errors = validate_context_lesson(
+                content,
+                context.cefr_level,
+                required_target_words=context.selection.required_target_words,
+                priority_words=context.selection.priority_words,
+            )
+            if not validation_errors:
+                break
+            if attempt == MAX_GENERATION_ATTEMPTS - 1:
+                break
+
+            retry_count += 1
+            current_context = replace(
+                context,
+                previous_validation_errors=tuple(validation_errors),
+            )
+
+        assert content is not None
         elapsed_ms = round((perf_counter() - started_at) * 1000)
         model_name = getattr(self.provider, "model", None)
         if not isinstance(model_name, str) or not model_name:
@@ -136,6 +161,6 @@ class LessonGenerationService:
                 "latency_ms": elapsed_ms,
                 "input_tokens": None,
                 "output_tokens": None,
-                "retry_count": 0,
+                "retry_count": retry_count,
             },
         )
