@@ -70,6 +70,12 @@ MVP authentication scope:
 
 The product must include a Maimemo sync architecture from the start.
 
+### Vocabulary Snapshot Persistence For AI Generation
+
+The sync snapshot is immutable input evidence for later lesson generation. Aggregate counts such as trackedWordCount are useful for display, but they are not sufficient for AI retrieval.
+
+The preferred MVP direction is to persist normalized snapshot-word records containing the snapshot identity, user identity, exact word, and source category: new, fuzzy, practice, or mastered. This does not introduce a global word bank, embeddings, or vector retrieval. The existing aggregate vocabulary profile may remain as a read-optimized view of the latest snapshot.
+
 The real Maimemo integration may be unavailable during early development, so the sync layer must be adapter-based:
 
 ```text
@@ -133,6 +139,18 @@ Each lesson uses the latest synced Maimemo learning words for that user. Lexis m
 
 ## 8. AI Lesson Generator
 
+### Word Roles In Generation Context
+
+The generation context must preserve word roles instead of passing only one flattened selected-words list:
+
+- Required target words: a small set of words that must be used naturally.
+- Priority words: words preferred for reuse when they fit the topic.
+- Context words: words allowed to support the passage but not default explanation targets.
+- Excluded words: words removed by the user or rejected by the selection policy.
+- Source snapshot identity: the exact Maimemo snapshot used for generation.
+
+This preserves the boundary between vocabulary selection and lesson generation, and prevents the model from treating every synchronized word as equally mandatory.
+
 The AI lesson generator is a separate core module.
 
 It receives a structured `LessonGenerationContext`, such as:
@@ -153,6 +171,10 @@ It outputs a structured `ContextLesson`.
 The AI module must not directly depend on Maimemo implementation details. It should consume normalized vocabulary data so future data sources can be added without rewriting lesson generation logic.
 
 ## 9. AI Role And Output Contract
+
+### Content And Exercise Traceability
+
+Each exercise must be grounded in the reading content. The structured output should carry internal traceability fields for the source sentence or paragraph, target word, skill, and grading mode. These fields may be hidden from the learner-facing response but are required for validation and later quality evaluation.
 
 AI role:
 
@@ -190,6 +212,15 @@ The generated lesson must include:
 - Final lesson summary fields.
 
 ## 10. Lesson Generation Rules
+
+### Naturalness And Word Selection Rules
+
+The following rules refine the basic vocabulary requirements:
+
+- Required target words must appear in the passage or a directly related exercise, with natural collocation and correct part of speech.
+- Priority words should be used when they fit the selected context; the system may omit them when inclusion would make the passage unnatural.
+- The generator must not force semantically unrelated words into one passage. If the selected words cannot form one coherent context, the selection step should reduce or regroup them before generation.
+- A valid lesson must have a coherent topic, logical progression, CEFR-appropriate difficulty, non-repetitive phrasing, and target-word usage that sounds natural in context.
 
 The default MVP target is:
 
@@ -257,6 +288,13 @@ Before generation, the user may lightly adjust the word package:
 The MVP should not include a complex word-bank management or advanced filtering interface.
 
 ## 12. Exercise Types
+
+### Question Quality Rules
+
+- Every question must be answerable from the reading passage or its explicitly stated output task.
+- Multiple-choice distractors must be plausible, mutually distinguishable, and not depend on irrelevant tricks.
+- The four exercise types must test different skills rather than repeat the same comprehension question.
+- Objective exercises may use an answer key; output exercises must use criteria or a rubric instead of exact-string matching.
 
 Every MVP lesson must include four exercise types:
 
@@ -351,6 +389,12 @@ The MVP does not need:
 
 ## 16. Quality Validation
 
+### Content Quality Gate
+
+The first quality gate should be deterministic and local. It must additionally check required-word coverage using normalized words or approved inflections, target-word part of speech, unfamiliar-word support, exercise source traceability, grading-mode compatibility, and objective answer-key consistency.
+
+Priority-word coverage should be reported separately from required-word coverage. A separate AI critique-and-repair pass may be added after the baseline validator and fixed regression cases are stable; it is not a prerequisite for the first content-quality slice.
+
 AI generation must pass schema validation and rule validation before being shown as a valid lesson.
 
 Minimum validation:
@@ -367,6 +411,23 @@ Minimum validation:
 - Final summary fields exist.
 
 Invalid generations should be marked as failed and should allow regeneration. Bad AI output should not silently become a valid lesson.
+
+## 16A. AI Generation Pipeline And Provider Boundary
+
+The generation flow should be implemented as an application service rather than directly in an API route:
+
+1. Load the latest immutable vocabulary snapshot.
+2. Normalize, deduplicate, and classify candidate words.
+3. Select required, priority, context, and excluded words.
+4. Build a coherent topic and lesson constraint plan.
+5. Call the configured LLMProvider for structured lesson generation.
+6. Run schema, rule, and traceability validation.
+7. Retry or regenerate only when the failure policy allows it.
+8. Save lesson content, vocabulary provenance, and generation metadata.
+
+LLMProvider remains the provider boundary. Provider-specific request construction, model identifiers, and response parsing must stay inside the provider adapter. The generation service should depend on typed input and output contracts, not on OpenRouter or any future provider API shape.
+
+The MVP does not expose model selection in the frontend, but the backend should record provider name, model name, prompt version, schema version, latency, token usage, retry count, and validation results. This makes later model switching and offline quality comparison possible without changing ContextLesson semantics.
 
 ## 17. Non-Goals For MVP
 
@@ -385,6 +446,10 @@ The MVP explicitly does not include:
 - Advanced word-bank management.
 
 ## 18. Risks
+
+### AI Quality Evaluation Risk
+
+Quality must also be evaluated against a small fixed set of cases covering target-word naturalness, CEFR fit, passage coherence, exercise differentiation, feedback usefulness, and summary relevance. The fixed cases are regression evidence; they do not replace runtime validation.
 
 ### Maimemo Interface Risk
 
@@ -409,6 +474,11 @@ AI output may fail to follow vocabulary, length, structure, or exercise constrai
 
 ## 19. Open Questions
 
+The following questions remain intentionally open for the next design pass:
+
+- What is the maximum number of required target words for each lesson level and word-package size?
+- Should the first quality slice use only deterministic validation, or also an optional critique-and-repair provider call?
+
 - Which technical stack will be used?
 - Which database will be used?
 - Which auth implementation will be used?
@@ -419,6 +489,14 @@ AI output may fail to follow vocabulary, length, structure, or exercise constrai
 - What exact JSON schema should `ContextLesson` use?
 
 ## 20. Implementation Slice Recommendation
+
+The content-quality work should be inserted into the implementation order as follows:
+
+1. Snapshot-word persistence and vocabulary provenance.
+2. Structured lesson and exercise traceability schema.
+3. Deterministic lesson-quality validation and fixed regression cases.
+4. Mock AI lesson generator through the generation service.
+5. Real AI Provider integration with provider and model metadata.
 
 The safest first implementation sequence is:
 

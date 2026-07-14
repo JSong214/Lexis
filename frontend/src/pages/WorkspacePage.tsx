@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowClockwise } from '@phosphor-icons/react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
@@ -20,12 +21,14 @@ export function WorkspacePage() {
   const profile = useVocabularyProfileQuery()
   const syncMaimemo = useSyncMaimemoMutation()
   const [selectedWords, setSelectedWords] = useState<string[]>([])
+  const selectionInitialized = useRef(false)
 
   useEffect(() => {
-    if (profile.data && selectedWords.length === 0) {
+    if (profile.data && !selectionInitialized.current) {
+      selectionInitialized.current = true
       setSelectedWords([...profile.data.newWords, ...profile.data.fuzzyWords].slice(0, 3))
     }
-  }, [profile.data, selectedWords.length])
+  }, [profile.data])
 
   const vocabularyGroups = useMemo(() => profile.data ? [
     { title: 'New Words', note: 'Course focus candidates', words: profile.data.newWords },
@@ -43,6 +46,22 @@ export function WorkspacePage() {
     syncMaimemo.mutate(undefined, {
       onSuccess: (syncedProfile) => toast.success('Maimemo synced · ' + (syncedProfile.newWords.length + syncedProfile.fuzzyWords.length) + ' focus words'),
       onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'Maimemo sync failed.'),
+    })
+  }
+
+  function handleGenerateLesson() {
+    if (!currentUser.data) return
+    if (selectedWords.length === 0) {
+      toast.error('需要至少选择一个单词')
+      return
+    }
+
+    generateLesson.mutate({ cefrLevel: currentUser.data.cefr_level, examGoal: currentUser.data.learning_goal, selectedWords }, {
+      onSuccess: (lesson) => {
+        toast.success('Lesson generated')
+        navigate('/app/lessons/' + lesson.id)
+      },
+      onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'Lesson generation failed.'),
     })
   }
 
@@ -76,7 +95,12 @@ export function WorkspacePage() {
 
   return (
     <div>
-      <PageTitle subtitle="Review the latest synchronized words and prepare the next lesson.">Course Workbench</PageTitle>
+      <div className="flex items-start justify-between gap-4">
+        <PageTitle subtitle="Review the latest synchronized words and prepare the next lesson.">Course Workbench</PageTitle>
+        <button aria-label="Refresh Maimemo" className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-ink-muted transition hover:bg-surface-muted hover:text-ink disabled:opacity-50 lg:hidden" disabled={syncMaimemo.isPending} onClick={handleSync} title="Refresh Maimemo" type="button">
+          <ArrowClockwise aria-hidden="true" className={syncMaimemo.isPending ? 'animate-spin' : undefined} size={18} />
+        </button>
+      </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.95fr)]">
         <div className="grid gap-5">
           <Card className="p-5">
@@ -109,7 +133,7 @@ export function WorkspacePage() {
           </Card>
         </div>
         <div className="grid content-start gap-5">
-          <Card className="p-5">
+          <Card className="hidden p-5 lg:block">
             <SectionHeading subtitle="Refreshes this account's snapshot and vocabulary profile.">Maimemo sync</SectionHeading>
             <p className="mt-4 text-xs text-ink-muted">Provider: {connection.data?.provider ?? 'maimemo'}</p>
             <button className="mt-5 h-10 w-full rounded-lg border border-line bg-white text-sm font-semibold hover:bg-surface-muted disabled:opacity-50" disabled={syncMaimemo.isPending} onClick={handleSync} type="button">{syncMaimemo.isPending ? 'Syncing…' : 'Sync again'}</button>
@@ -118,13 +142,7 @@ export function WorkspacePage() {
             <StatusChip>Schema validated</StatusChip>
             <SectionHeading subtitle="Uses the configured LLMProvider and validates the structured ContextLesson before saving.">Lesson generation</SectionHeading>
             <p className="mt-4 text-xs text-ink-muted">{currentUser.data ? `${currentUser.data.cefr_level} · ${currentUser.data.learning_goal}` : 'Learning profile unavailable'}</p>
-            <PrimaryButton className="mt-5 w-full" disabled={!currentUser.data || selectedWords.length === 0 || generateLesson.isPending} onClick={() => currentUser.data && generateLesson.mutate({ cefrLevel: currentUser.data.cefr_level, examGoal: currentUser.data.learning_goal, selectedWords }, {
-                onSuccess: (lesson) => {
-                  toast.success('Lesson generated')
-                  navigate('/app/lessons/' + lesson.id)
-                },
-                onError: (mutationError) => toast.error(mutationError instanceof Error ? mutationError.message : 'Lesson generation failed.'),
-              })}>{generateLesson.isPending ? 'Generating…' : 'Generate lesson'}</PrimaryButton>
+            <PrimaryButton className="mt-5 w-full" disabled={!currentUser.data || generateLesson.isPending} onClick={handleGenerateLesson}>{generateLesson.isPending ? 'Generating…' : 'Generate lesson'}</PrimaryButton>
           </Card>
         </div>
       </div>

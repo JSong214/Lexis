@@ -48,7 +48,7 @@ export function AppShell() {
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl px-6 pb-28 pt-6 md:px-8"><Outlet /></main>
-      <nav aria-label="Primary navigation" className="fixed inset-x-6 bottom-3 z-50 mx-auto grid max-w-[480px] grid-cols-3 rounded-xl border border-line bg-white/95 p-2 shadow-[0_12px_36px_rgba(17,20,23,0.08)] backdrop-blur md:bottom-5">
+      <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 z-50 grid w-full grid-cols-3 rounded-none border border-b-0 border-line bg-white/95 p-2 shadow-[0_12px_36px_rgba(17,20,23,0.08)] backdrop-blur">
         {navigation.map((item) => (
           <NavLink className={({ isActive }) => `flex h-11 flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-medium transition ${isActive ? 'bg-lexis-soft text-lexis' : 'text-ink-muted hover:bg-surface-muted'}`} key={item.to} to={item.to}>
             {({ isActive }) => <><span className={`size-1.5 rounded-full ${isActive ? 'bg-lexis' : 'bg-[#a9b4ae]'}`} aria-hidden="true" />{item.label}</>}
