@@ -13,6 +13,8 @@ ExerciseType = Literal[
     "paragraph_logic",
     "output",
 ]
+GradingMode = Literal["exact_match", "rubric"]
+
 
 
 class LessonApiModel(BaseModel):
@@ -34,6 +36,11 @@ class Exercise(LessonApiModel):
     question: str
     options: list[str]
     expected_answer: str
+    source_reference: str = Field(min_length=1, max_length=200)
+    target_word: str | None
+    skill: str = Field(min_length=1, max_length=80)
+    grading_mode: GradingMode
+    rubric: list[str] = Field(min_length=1, max_length=5)
     explanation_zh: str
 
 
@@ -76,6 +83,7 @@ class ContextLessonResponse(LessonApiModel):
     exam_goal: str
     content: PublicContextLessonContent
     validation_errors: list[str]
+    generation_metadata: dict[str, object]
     created_at: datetime
 
 

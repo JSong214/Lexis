@@ -30,6 +30,11 @@ class ConnectionResponse(ApiModel):
     updated_at: datetime | None
 
 
+class VocabularySnapshotWordResponse(ApiModel):
+    word: str
+    source_category: Literal["new", "fuzzy", "practice", "mastered_sample"]
+
+
 class VocabularyProfileResponse(ApiModel):
     id: uuid.UUID
     snapshot_id: uuid.UUID
@@ -42,3 +47,4 @@ class VocabularyProfileResponse(ApiModel):
     daily_total_count: int
     daily_study_time_ms: int
     created_at: datetime
+    snapshot_words: list[VocabularySnapshotWordResponse] = Field(default_factory=list)

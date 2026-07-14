@@ -29,6 +29,7 @@ export interface ContextLesson {
     exercises: Exercise[]
   }
   validationErrors: string[]
+  generationMetadata: Record<string, unknown>
   createdAt: string
 }
 

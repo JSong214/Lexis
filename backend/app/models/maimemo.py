@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -53,6 +53,31 @@ class MaimemoSyncSnapshot(Base):
     daily_total_count: Mapped[int] = mapped_column(Integer, default=0)
     daily_study_time_ms: Mapped[int] = mapped_column(Integer, default=0)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class VocabularySnapshotWord(Base):
+    __tablename__ = "vocabulary_snapshot_words"
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id",
+            "word",
+            "source_category",
+            name="uq_vocabulary_snapshot_word_source",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("maimemo_sync_snapshots.id", ondelete="CASCADE"),
+        index=True,
+    )
+    word: Mapped[str] = mapped_column(String(128))
+    source_category: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 class VocabularyProfile(Base):

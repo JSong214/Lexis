@@ -9,6 +9,11 @@ export interface MaimemoConnection {
   secretSaved: boolean
   updatedAt: string | null
 }
+export interface VocabularySnapshotWord {
+  word: string
+  sourceCategory: 'new' | 'fuzzy' | 'practice' | 'mastered_sample'
+}
+
 
 export interface VocabularyProfile {
   id: string
@@ -22,6 +27,7 @@ export interface VocabularyProfile {
   dailyTotalCount: number
   dailyStudyTimeMs: number
   createdAt: string
+  snapshotWords: VocabularySnapshotWord[]
 }
 
 export const connectionQueryKey = ['maimemo', 'connection'] as const

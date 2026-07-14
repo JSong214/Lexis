@@ -60,10 +60,38 @@ def test_mock_sync_builds_vocabulary_profile(client: TestClient) -> None:
     assert profile["dailyFinishedCount"] == 18
     assert profile["dailyTotalCount"] == 30
     assert profile["dailyStudyTimeMs"] == 1_080_000
+    assert profile["snapshotWords"] == [
+        {"word": "anchor", "sourceCategory": "new"},
+        {"word": "segment", "sourceCategory": "new"},
+        {"word": "estimate", "sourceCategory": "new"},
+        {"word": "criteria", "sourceCategory": "new"},
+        {"word": "draft", "sourceCategory": "new"},
+        {"word": "validate", "sourceCategory": "new"},
+        {"word": "retain", "sourceCategory": "fuzzy"},
+        {"word": "compile", "sourceCategory": "fuzzy"},
+        {"word": "ambiguous", "sourceCategory": "fuzzy"},
+        {"word": "scope", "sourceCategory": "fuzzy"},
+        {"word": "review", "sourceCategory": "practice"},
+        {"word": "reinforce", "sourceCategory": "practice"},
+        {"word": "apply", "sourceCategory": "practice"},
+        {"word": "stable", "sourceCategory": "mastered_sample"},
+        {"word": "fluent", "sourceCategory": "mastered_sample"},
+        {"word": "pattern", "sourceCategory": "mastered_sample"},
+        {"word": "contrast", "sourceCategory": "mastered_sample"},
+    ]
 
     latest = client.get("/api/v1/vocabulary/profile")
     assert latest.status_code == 200
     assert latest.json()["snapshotId"] == profile["snapshotId"]
+    latest_words = sorted(
+        latest.json()["snapshotWords"],
+        key=lambda item: (item["sourceCategory"], item["word"]),
+    )
+    synced_words = sorted(
+        profile["snapshotWords"],
+        key=lambda item: (item["sourceCategory"], item["word"]),
+    )
+    assert latest_words == synced_words
 
 
 def test_profile_is_isolated_by_user(client: TestClient) -> None:

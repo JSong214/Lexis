@@ -4,7 +4,12 @@ from app.models.lesson import (
     ExerciseFeedback,
     LessonAttempt,
 )
-from app.models.maimemo import MaimemoConnection, MaimemoSyncSnapshot, VocabularyProfile
+from app.models.maimemo import (
+    MaimemoConnection,
+    MaimemoSyncSnapshot,
+    VocabularyProfile,
+    VocabularySnapshotWord,
+)
 from app.models.user import User
 from app.models.user_session import UserSession
 
@@ -17,5 +22,6 @@ __all__ = [
     "MaimemoSyncSnapshot",
     "User",
     "UserSession",
+    "VocabularySnapshotWord",
     "VocabularyProfile",
 ]

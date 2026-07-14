@@ -25,6 +25,7 @@ class ContextLesson(Base):
     exam_goal: Mapped[str] = mapped_column(String(120))
     content: Mapped[dict[str, object]] = mapped_column(JSON)
     validation_errors: Mapped[list[str]] = mapped_column(JSON, default=list)
+    generation_metadata: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

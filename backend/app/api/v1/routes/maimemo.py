@@ -7,12 +7,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import CurrentUser
 from app.core.secret_cipher import SecretCipher, get_secret_cipher
 from app.db.session import get_db
-from app.models import MaimemoConnection, MaimemoSyncSnapshot, VocabularyProfile
+from app.models import (
+    MaimemoConnection,
+    MaimemoSyncSnapshot,
+    VocabularyProfile,
+    VocabularySnapshotWord,
+)
 from app.providers.maimemo import MaimemoProviderError, build_maimemo_sync_provider
 from app.schemas.maimemo import (
     ConnectionResponse,
     ConnectionUpdate,
     VocabularyProfileResponse,
+    VocabularySnapshotWordResponse,
 )
 
 router = APIRouter()
@@ -34,6 +40,21 @@ def connection_response(connection: MaimemoConnection | None) -> ConnectionRespo
         provider=connection.provider,
         secret_saved=secret_saved,
         updated_at=connection.updated_at,
+    )
+
+
+def vocabulary_profile_response(
+    profile: VocabularyProfile,
+    snapshot_words: list[VocabularySnapshotWord],
+) -> VocabularyProfileResponse:
+    response = VocabularyProfileResponse.model_validate(profile, from_attributes=True)
+    return response.model_copy(
+        update={
+            "snapshot_words": [
+                VocabularySnapshotWordResponse.model_validate(word, from_attributes=True)
+                for word in snapshot_words
+            ]
+        }
     )
 
 
@@ -133,6 +154,22 @@ async def sync_maimemo(
     )
     db.add(snapshot)
     await db.flush()
+    snapshot_words = [
+        VocabularySnapshotWord(
+            user_id=current_user.id,
+            snapshot_id=snapshot.id,
+            word=word,
+            source_category=source_category,
+        )
+        for source_category, words in (
+            ("new", result.new_words),
+            ("fuzzy", result.fuzzy_words),
+            ("practice", result.practice_words),
+            ("mastered_sample", result.mastered_words_sample),
+        )
+        for word in dict.fromkeys(words)
+    ]
+    db.add_all(snapshot_words)
     profile = VocabularyProfile(
         user_id=current_user.id,
         snapshot_id=snapshot.id,
@@ -148,7 +185,7 @@ async def sync_maimemo(
     db.add(profile)
     await db.commit()
     await db.refresh(profile)
-    return profile
+    return vocabulary_profile_response(profile, snapshot_words)
 
 
 @router.get("/vocabulary/profile", response_model=VocabularyProfileResponse)
@@ -179,4 +216,14 @@ async def get_vocabulary_profile(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No vocabulary profile is available",
         )
-    return profile
+    snapshot_words = list(
+        await db.scalars(
+            select(VocabularySnapshotWord)
+            .where(
+                VocabularySnapshotWord.user_id == current_user.id,
+                VocabularySnapshotWord.snapshot_id == profile.snapshot_id,
+            )
+            .order_by(VocabularySnapshotWord.source_category, VocabularySnapshotWord.word)
+        )
+    )
+    return vocabulary_profile_response(profile, snapshot_words)

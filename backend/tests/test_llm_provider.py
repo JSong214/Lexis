@@ -27,11 +27,23 @@ def test_openrouter_provider_uses_bearer_auth_and_structured_output() -> None:
         assert request.headers["HTTP-Referer"] == "http://localhost:5173"
         payload = json.loads(request.content)
         assert payload["model"] == "provider/test-model"
+        context_payload = json.loads(payload["messages"][1]["content"])
+        assert context_payload["requiredTargetWords"] == ["anchor", "estimate"]
+        assert context_payload["priorityWords"] == []
+        assert context_payload["contextWords"] == ["stable"]
+        assert context_payload["sourceSnapshotId"] is None
         assert payload["response_format"]["type"] == "json_schema"
         schema = payload["response_format"]["json_schema"]["schema"]
         assert schema["additionalProperties"] is False
         assert schema["$defs"]["Exercise"]["additionalProperties"] is False
         assert "options" in schema["$defs"]["Exercise"]["required"]
+        assert {
+            "sourceReference",
+            "targetWord",
+            "skill",
+            "gradingMode",
+            "rubric",
+        } <= set(schema["$defs"]["Exercise"]["required"])
         return httpx.Response(
             200,
             json={

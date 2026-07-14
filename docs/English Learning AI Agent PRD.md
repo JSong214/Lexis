@@ -16,6 +16,8 @@ Ready for review
   - https://github.com/maimemo/memo-api-cli
   - https://github.com/maimemo/memo-skills/tree/main
 
+本次同步还纳入当前会话中用户确认的 AI 生成质量、词汇快照持久化、生成流程和模型切换预留要求。
+
 本 PRD 只把 Maimemo 公开资料作为 adapter 设计参考，不把真实接口能力视为已经验证完成。
 
 ## Decision Ledger
@@ -41,6 +43,13 @@ Ready for review
 | D17 | Confirmed Decision | `LessonAttempt` / `ExerciseFeedback` 存用户作答、逐题反馈和最终总结。 | 用户补充 | requirement |
 | D18 | Confirmed Decision | MVP 完整支持 CEFR A1-C2，每个等级都要有生成约束、校验规则和测试样例。 | 用户补充 | requirement |
 | D19 | Confirmed Decision | 主要用户更正为 CEFR 全阶段学习者。 | 用户补充 | requirement |
+| D20 | Confirmed Decision | Sync snapshot 是后续课程生成的不可变输入证据；除统计数量外，必须保留具体词项、用户归属、snapshot 归属和来源类别。MVP 不引入全局词库、embedding 或 vector retrieval。 | 当前会话确认 + MVP Plan §5 | requirement |
+| D21 | Confirmed Decision | LessonGenerationContext 必须区分 required target words、priority words、context words、excluded words，并保留 source snapshot identity。 | 当前会话确认 + MVP Plan §8 | requirement |
+| D22 | Confirmed Decision | Required target words 必须自然使用；priority words 在不适合当前主题时可以省略；不得为了覆盖词汇强行拼接语义无关内容。 | 当前会话确认 + MVP Plan §10 | requirement |
+| D23 | Confirmed Decision | 每道题必须保留文章句子或段落、目标词、能力类型和 grading mode 等内部可追溯信息；output 题使用 criteria 或 rubric，不使用精确字符串匹配。 | 当前会话确认 + MVP Plan §§9, 12 | requirement |
+| D24 | Confirmed Decision | 第一阶段质量门禁以本地、确定性校验为主；critique-and-repair 不是第一阶段的必要调用。 | 当前会话确认 + MVP Plan §16 | requirement |
+| D25 | Confirmed Decision | 生成流程由独立 application service 编排，provider-specific 请求和响应解析留在 LLMProvider adapter 内；记录 provider、model、prompt/schema version、耗时、token、重试和校验结果。 | 当前会话确认 + MVP Plan §16A | requirement |
+| D26 | Confirmed Decision | 使用固定回归样例评估目标词自然度、CEFR 适配、文章连贯性、题目区分度、反馈有效性和总结相关性。 | 当前会话确认 + MVP Plan §18 | requirement |
 | R1 | Risk | Maimemo 真实 adapter 字段需要基于开放平台、memo-api-cli 和 memo-skills 继续验证。 | 用户补充 + 参考资料 | risk |
 | R2 | Risk | 账号、session、HttpOnly cookie、加密 secret 和用户数据隔离是安全敏感面。 | MVP Plan + 用户补充 | risk |
 
@@ -59,6 +68,8 @@ Lexis 要解决的问题是：基于用户在墨墨背单词中的当日学习�
 - 保存用户课程历史、作答记录、逐题反馈和最终总结。
 - 维护 Lexis 自有的语境掌握状态，但不写回 Maimemo。
 - 用结构化输出、schema 校验、规则校验控制 AI 生成质量。
+- 减少目标词强行植入和文章表达不自然的问题。
+- 保留词汇来源与生成过程 provenance，支持后续模型切换和质量比较。
 - 以 mock provider 支撑真实 Maimemo / OpenAI 集成前的端到端开发和测试。
 
 ## Non-Goals
@@ -73,6 +84,8 @@ Lexis 要解决的问题是：基于用户在墨墨背单词中的当日学习�
 - MVP 不做组织、班级、好友、排行榜、管理员后台。
 - MVP 不做听力、口语、发音评分、ASR、音频生成。
 - MVP 不做复杂学习报表、周报、月报、积分系统。
+- MVP 不引入 embedding、vector retrieval 或全局词库检索。
+- MVP 不要求 critique-and-repair 调用作为课程生成的必要阶段。
 - MVP 不做高级词库管理或复杂筛选器。
 
 ## Users And Actors
@@ -123,10 +136,14 @@ CEFR A1-C2 全阶段英语学习者。
 - 最终总结。
 - 课程历史查看。
 - Lexis 语境掌握状态。
+- 按 sync snapshot 保存可追溯的 normalized snapshot-word records。
+- 第一阶段本地确定性质量门禁和固定回归样例。
+- 生成流程与 provider/model 运行元数据记录。
 - schema 校验和规则校验。
 
 ### Confirmed Follow-Up
 
+- AI critique-and-repair 作为后续可选质量增强，不属于第一阶段必需流程。
 - 微信登录。
 - 多模型 UI。
 - 模型切换功能。
@@ -140,11 +157,14 @@ CEFR A1-C2 全阶段英语学习者。
 3. 用户配置 Maimemo 连接，secret 加密保存。
 4. 用户点击同步 Maimemo。
 5. 系统获取并保存本次 sync snapshot。
+5a. 系统将本次 snapshot 中的具体词项按来源类别归一化保存，并保留用户和 snapshot 归属。
 6. 系统展示今日新词、复习或模糊词、已掌握词样本、墨墨词汇记录总数。
 7. 用户在生成前轻量调整词包。
+7a. 系统按 required、priority、context、excluded 角色构建 LessonGenerationContext，并保留本次 source snapshot identity。
 8. 用户点击生成课程。
 9. 系统调用 `LLMProvider` 生成结构化 `ContextLesson`。
 10. 系统执行 schema 校验和规则校验。
+10a. 质量门禁检查 required-word coverage、词语使用基本条件、陌生词辅助、题目 traceability、grading mode 和 objective answer key 一致性。
 11. 校验通过后展示文章、陌生词辅助表、语法分析和四类练习。
 12. 用户逐题作答。
 13. 系统保存 `LessonAttempt` 和 `ExerciseFeedback`，并展示即时反馈。
@@ -189,6 +209,9 @@ CEFR A1-C2 全阶段英语学习者。
 
 ### Lesson Generation
 
+- FR19a: 系统必须保存本次 sync snapshot 中参与课程选择的具体词项，并记录用户、snapshot 和来源类别。
+- FR19b: 来源类别至少区分 new、fuzzy、practice、mastered；trackedWordCount 仅作为统计值，不得替代具体词项。
+- FR19c: 课程必须能够追溯到生成时使用的 source snapshot identity。
 - FR20: 系统必须定义 `LessonGenerationContext`。
 - FR21: `LessonGenerationContext` 至少包含 `examGoal`、`cefrLevel`、`newWords`、`fuzzyWords`、`masteredWordsSample`、`trackedWordCount`、`userWordAdjustments`、`generationConstraints`。
 - FR22: 系统必须定义 `LLMProvider` abstraction。
@@ -196,6 +219,11 @@ CEFR A1-C2 全阶段英语学习者。
 - FR24: MVP 首选 OpenAI-backed provider。
 - FR25: AI 输出必须为结构化数据。
 - FR26: `ContextLesson` 只存 AI 生成的课程内容，不存用户作答或反馈。
+
+- FR21a: LessonGenerationContext 必须区分 required target words、priority words、context words、excluded words。
+- FR21b: Required target words 必须自然出现在文章或直接关联的练习中；priority words 在不适合当前主题时可以省略，不得强行拼接语义无关内容。
+- FR21c: 课程生成必须通过独立 application service 编排；LLMProvider adapter 负责 provider-specific 请求、模型标识和响应解析。
+- FR21d: 系统必须记录 provider name、model name、prompt version、schema version、耗时、token usage、retry count 和 validation results。
 
 ### CEFR Constraints
 
@@ -232,6 +260,10 @@ CEFR A1-C2 全阶段英语学习者。
 - FR43: 复习或模糊词必须优先进入复现或练习。
 - FR44: 已掌握词只作为语境构建材料，不默认作为讲解或练习对象。
 
+- FR44a: 目标词使用必须满足基本词义、词性和语境搭配要求；文章必须具备连贯主题、逻辑推进和 CEFR 匹配度。
+- FR44b: 每道练习题必须能由文章内容或明确的 output task 支撑；题目必须记录 source sentence 或 paragraph、target word、skill 和 grading mode 等内部 traceability。
+- FR44c: objective 题使用 answer key；output 题使用 criteria 或 rubric，不使用 exact-string matching。
+
 ### Interaction And Feedback
 
 - FR45: 课程生成必须由用户手动触发。
@@ -256,6 +288,10 @@ CEFR A1-C2 全阶段英语学习者。
 - FR58: 规则校验必须覆盖文章长度、CEFR 范围、目标词覆盖、额外陌生词数量、四类题完整性、语法分析、最终总结字段。
 - FR59: 校验失败的课程不得被标记为有效课程。
 - FR60: 校验失败时，系统必须给出失败状态，并允许重新生成。
+
+- FR61: 质量门禁必须额外检查 required-word coverage、approved inflection、目标词基本词性、陌生词中文辅助、题目 traceability、grading mode 和 objective answer key 一致性。
+- FR62: 系统必须维护固定回归样例，覆盖目标词自然度、CEFR 适配、文章连贯性、题目区分度、反馈有效性和总结相关性。
+- FR63: critique-and-repair 调用不是第一阶段课程生成的必要条件；是否增加该阶段保留为 Open Question。
 
 ## AI Behavior Contract
 
@@ -288,6 +324,32 @@ AI 负责把 Maimemo 同步后的词汇数据转化为 CEFR 匹配的英语阅�
 - 不使用超过约束数量的额外陌生词。
 - 不超过当前 CEFR level 的长度与难度约束。
 - 不在输出中包含 secret、token、内部 prompt、服务端配置。
+
+## AI Generation Quality Addendum
+
+### Word Selection And Naturalness
+
+- Sync snapshot 是课程生成的不可变输入证据。
+- Required target words 是必须自然处理的少量核心词。
+- Priority words 在适合当前主题时优先使用，不适合时可以省略。
+- Context words 只用于支持语境，不默认作为解释或练习目标。
+- Excluded words 不得进入本次生成上下文。
+- 生成器不得为了覆盖词汇将语义无关的词强行拼接在一篇文章中。
+- 有效课程必须具备连贯主题、逻辑推进、CEFR 匹配度和非重复表达。
+
+### Exercise Traceability
+
+每道题必须关联文章句子或段落、目标词、能力类型和 grading mode。Multiple-choice 选项应当具有合理干扰性且彼此可区分；四类题必须考察不同能力。Output 题必须使用评分标准或 rubric，允许合理的非唯一答案。
+
+### Generation Pipeline And Model Boundary
+
+生成流程依次执行 snapshot 加载、词汇归一化与分类、角色选择、主题与约束规划、结构化生成、schema/rule/traceability 校验、按策略重试，以及课程内容、词汇 provenance 和生成元数据保存。
+
+LLMProvider 是 provider boundary。MVP 不提供前端模型选择 UI，但后端必须记录 provider、model、prompt version、schema version、latency、token usage、retry count 和 validation results，以支持后续模型切换和离线质量比较。
+
+### Evaluation
+
+固定回归样例至少覆盖目标词自然度、CEFR 适配、文章连贯性、题目区分度、反馈有效性和总结相关性。固定样例用于回归验证，不替代运行时 schema/rule/traceability 校验，也不预设尚未确认的评分阈值。
 
 ## Data Boundary
 
@@ -330,6 +392,9 @@ AI 负责把 Maimemo 同步后的词汇数据转化为 CEFR 匹配的英语阅�
 - `ContextMasteryState`
 - `LLMCallLog`
 
+- VocabularySnapshotWord
+- LessonGenerationMetadata 或等价的 generation metadata 记录
+
 ### Entity Boundaries
 
 - `ContextLesson` 只保存 AI 生成的课程内容。
@@ -337,6 +402,9 @@ AI 负责把 Maimemo 同步后的词汇数据转化为 CEFR 匹配的英语阅�
 - `ExerciseFeedback` 保存每道题的作答、评分或反馈。
 - `ContextMasteryState` 保存 Lexis 内部语境掌握状态。
 - `MaimemoSyncSnapshot` 保存同步快照，便于追溯某节课使用了哪些词。
+
+- VocabularySnapshotWord 保存 snapshot 中的具体词项、用户归属和来源类别，支持课程生成 provenance。
+- LessonGenerationMetadata 保存 provider/model、版本、耗时、token、重试和校验结果；最终字段布局仍可在实现设计中确定。
 
 ### Maimemo Adapter Reference
 
@@ -364,6 +432,9 @@ MVP adapter 需要把这些字段或可用等价字段归一化为 Lexis 的 `ne
 - OpenAI 调用失败：标记生成失败，允许用户重试。
 - AI 输出 schema 失败：不展示为有效课程，提示重新生成。
 - 规则校验失败：标记失败原因，例如长度超限、题型缺失、陌生词过多。
+- 词包无法形成连贯主题：减少或重新分组 priority/context words，不得强行把语义无关词写入文章。
+- 质量门禁失败：课程保持失败状态并允许重试，不得作为有效课程展示。
+- critique-and-repair 尚未启用：不阻塞第一阶段生成流程。
 - 用户未完成课程：保存 attempt draft 或未完成状态，不强制完成。
 
 ## Observability
@@ -372,6 +443,7 @@ MVP adapter 需要把这些字段或可用等价字段归一化为 Lexis 的 `ne
 
 - Maimemo sync 成功/失败、错误类型、耗时。
 - LLM 调用成功/失败、模型名、token 用量、耗时、错误类型。
+- provider name、model name、prompt/schema version、retry count 和 validation results。
 - AI 输出校验结果。
 - 课程生成状态。
 - 用户提交练习和反馈生成状态。
@@ -421,6 +493,12 @@ MVP 不设定明确 token 成本或延迟阈值，但需要保存 LLM 调用耗�
 - AC14: OpenAI 调用失败时，系统展示生成失败状态并允许重试。
 - AC15: 日志中不出现 Maimemo plaintext secret、平台 AI key 或用户 AI token。
 
+- AC16: sync snapshot 中参与课程生成的具体词项按来源类别持久化，并可追溯到用户和 snapshot。
+- AC17: 生成请求能够区分 required、priority、context、excluded 词汇角色；priority 词不适合当前主题时可以被省略。
+- AC18: 课程题目包含内部 source traceability 和 grading mode；output 题使用 criteria 或 rubric。
+- AC19: 生成记录包含 provider/model、prompt/schema version、latency、token usage、retry count 和 validation results。
+- AC20: 固定回归样例覆盖目标词自然度、CEFR 适配、文章连贯性、题目区分度、反馈有效性和总结相关性。
+
 ## Testing Strategy
 
 Confidence: high
@@ -432,6 +510,14 @@ Confidence: high
 - 规则校验：长度、额外陌生词、题型完整性、目标词覆盖。
 - Maimemo sync response normalization。
 - Secret encryption/decryption boundary。
+
+### AI Quality Tests
+
+- 目标词角色选择和 snapshot provenance。
+- 目标词覆盖、approved inflection、基本词性和语境搭配校验。
+- 题目 source traceability、题型区分度和 output rubric。
+- provider/model generation metadata 和失败重试状态。
+- 固定回归样例的自然度、CEFR、连贯性、题目、反馈和总结评估。
 
 ### Integration Tests
 
@@ -482,6 +568,18 @@ Confidence: high
 - 校验失败不展示为有效课程。
 - CEFR A1-C2 均提供测试样例。
 
+### R2a: AI Content Quality Risk
+
+风险：模型可能为了覆盖词汇而生成语义牵强、搭配不自然或与文章无关的题目。
+
+缓解：
+
+- 生成前按词汇角色选择目标词。
+- 生成后执行本地确定性质量门禁。
+- 保存题目 traceability 和生成 provenance。
+- 使用固定回归样例持续评估自然度和课程质量。
+- critique-and-repair 是否加入后续流程保持为 Open Question。
+
 ### R3: Security Risk
 
 风险：账号、session、HttpOnly cookie、Maimemo secret、平台 AI key 涉及安全敏感面。
@@ -505,6 +603,9 @@ Confidence: high
 
 ## Open Questions
 
+- 每个 CEFR level 和 word package 的 maximum required target words 数量尚未确定。
+- 第一阶段是否增加可选 critique-and-repair provider call 尚未确定。
+- 题目 traceability 和 generation metadata 的最终 JSON/schema 字段名称尚未确定。
 - OpenAI MVP 使用的具体 model 尚未确定。
 - `ContextLesson` 的最终 JSON schema 需要在实现前定稿。
 - Maimemo real adapter 是否能稳定得到 `masteredWordsSample` 仍需验证。

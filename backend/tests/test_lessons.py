@@ -71,6 +71,11 @@ def test_generate_and_read_valid_context_lesson(client: TestClient) -> None:
     assert response.status_code == 200
     lesson = response.json()
     assert lesson["status"] == "valid"
+    metadata = lesson["generationMetadata"]
+    assert metadata["provider"] == "mock"
+    assert metadata["model"] == "mock"
+    assert metadata["prompt_version"] == "lesson-generation-v2"
+    assert metadata["schema_version"] == "context-lesson-v1"
     assert lesson["content"]["targetWords"] == ["anchor", "estimate", "ambiguous"]
     assert "expectedAnswer" not in lesson["content"]["exercises"][0]
     assert "explanationZh" not in lesson["content"]["exercises"][0]
@@ -213,3 +218,17 @@ def test_complete_lesson_saves_summary_and_mastery(client: TestClient) -> None:
     assert history.json()[0]["attemptStatus"] == "completed"
     assert history.json()[0]["answeredCount"] == 4
     assert history.json()[0]["correctCount"] == 4
+
+def test_practice_word_can_be_selected_as_required_target(client: TestClient) -> None:
+    register_and_sync(client)
+    response = client.post(
+        "/api/v1/lessons/generate",
+        json={
+            "cefrLevel": "B2",
+            "examGoal": "IELTS reading",
+            "selectedWords": ["review"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["content"]["targetWords"] == ["review"]

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowClockwise } from '@phosphor-icons/react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
@@ -21,20 +21,48 @@ export function WorkspacePage() {
   const profile = useVocabularyProfileQuery()
   const syncMaimemo = useSyncMaimemoMutation()
   const [selectedWords, setSelectedWords] = useState<string[]>([])
-  const selectionInitialized = useRef(false)
 
-  useEffect(() => {
-    if (profile.data && !selectionInitialized.current) {
-      selectionInitialized.current = true
-      setSelectedWords([...profile.data.newWords, ...profile.data.fuzzyWords].slice(0, 3))
+  const snapshotWords = useMemo(() => {
+    if (!profile.data) {
+      return []
     }
+    if (profile.data.snapshotWords.length > 0) {
+      return profile.data.snapshotWords
+    }
+    return [
+      ...profile.data.newWords.map((word) => ({ word, sourceCategory: 'new' as const })),
+      ...profile.data.fuzzyWords.map((word) => ({ word, sourceCategory: 'fuzzy' as const })),
+      ...profile.data.practiceWords.map((word) => ({ word, sourceCategory: 'practice' as const })),
+    ]
   }, [profile.data])
 
-  const vocabularyGroups = useMemo(() => profile.data ? [
-    { title: 'New Words', note: 'Course focus candidates', words: profile.data.newWords },
-    { title: 'Fuzzy / Review Words', note: 'Worth practicing in context', words: profile.data.fuzzyWords },
-    { title: 'Practice Words', note: 'Today excluding new and review', words: profile.data.practiceWords },
-  ] : [], [profile.data])
+  const availableWords = useMemo(() => Array.from(new Set(
+    snapshotWords
+      .filter(({ sourceCategory }) => sourceCategory !== 'mastered_sample')
+      .map(({ word }) => word),
+  )), [snapshotWords])
+
+  useEffect(() => {
+    if (availableWords.length === 0) {
+      return
+    }
+
+    const availableWordKeys = new Set(
+      availableWords.map((word) => word.trim().toLowerCase()),
+    )
+    setSelectedWords((current) => {
+      const retainedWords = current.filter((word) =>
+        availableWordKeys.has(word.trim().toLowerCase()),
+      )
+      return retainedWords.length > 0 ? retainedWords : availableWords.slice(0, 3)
+    })
+  }, [availableWords])
+
+  const vocabularyGroups = useMemo(() => snapshotWords.length > 0 ? [
+    { title: 'New Words', note: 'Course focus candidates', words: snapshotWords.filter(({ sourceCategory }) => sourceCategory === 'new').map(({ word }) => word).sort((left, right) => left.localeCompare(right, 'en', { sensitivity: 'base' })) },
+    { title: 'Fuzzy / Review Words', note: 'Worth practicing in context', words: snapshotWords.filter(({ sourceCategory }) => sourceCategory === 'fuzzy').map(({ word }) => word).sort((left, right) => left.localeCompare(right, 'en', { sensitivity: 'base' })) },
+    { title: 'Practice Words', note: 'Today excluding new and review', words: snapshotWords.filter(({ sourceCategory }) => sourceCategory === 'practice').map(({ word }) => word).sort((left, right) => left.localeCompare(right, 'en', { sensitivity: 'base' })) },
+  ] : [], [snapshotWords])
 
   function toggleWord(word: string) {
     setSelectedWords((current) => current.includes(word)
@@ -56,7 +84,20 @@ export function WorkspacePage() {
       return
     }
 
-    generateLesson.mutate({ cefrLevel: currentUser.data.cefr_level, examGoal: currentUser.data.learning_goal, selectedWords }, {
+    const latestWordKeys = new Set(availableWords.map((word) => word.trim().toLowerCase()))
+    const validSelectedWords = selectedWords.filter((word) =>
+      latestWordKeys.has(word.trim().toLowerCase()),
+    )
+    if (validSelectedWords.length === 0) {
+      setSelectedWords(availableWords.slice(0, 3))
+      toast.error('词汇已同步，请重新选择最新词汇')
+      return
+    }
+    if (validSelectedWords.length !== selectedWords.length) {
+      setSelectedWords(validSelectedWords)
+    }
+
+    generateLesson.mutate({ cefrLevel: currentUser.data.cefr_level, examGoal: currentUser.data.learning_goal, selectedWords: validSelectedWords }, {
       onSuccess: (lesson) => {
         toast.success('Lesson generated')
         navigate('/app/lessons/' + lesson.id)
