@@ -13,11 +13,10 @@ from app.models import (
     ContextMasteryState,
     ExerciseFeedback,
     LessonAttempt,
-    MaimemoConnection,
-    MaimemoSyncSnapshot,
     VocabularyProfile,
-    VocabularySnapshotWord,
 )
+from app.providers.knowledge import get_knowledge_library
+from app.providers.lexical import get_lexical_source
 from app.providers.llm import (
     LessonGenerationContext,
     LLMProvider,
@@ -38,17 +37,29 @@ from app.schemas.lesson import (
     PublicContextLessonContent,
     PublicExercise,
 )
+from app.schemas.topic import TopicProposalRequest, TopicProposalResponse
+from app.services.lesson_content import (
+    is_legacy_context_lesson,
+    load_context_lesson_content,
+)
 from app.services.lesson_generation import LessonGenerationService
+from app.services.lesson_inputs import load_latest_vocabulary_inputs
 from app.services.lesson_validation import validate_context_lesson
+from app.services.topic_planning import TopicPlanningError, TopicPlanningService
 from app.services.vocabulary_context import (
     VocabularySelectionError,
     VocabularyWordRecord,
+    assign_vocabulary_roles,
     build_vocabulary_selection,
 )
 
 router = APIRouter(prefix="/lessons")
 Database = Annotated[AsyncSession, Depends(get_db)]
 Provider = Annotated[LLMProvider, Depends(get_llm_provider)]
+topic_planning_service = TopicPlanningService(
+    get_lexical_source(),
+    get_knowledge_library(),
+)
 
 
 def provider_http_exception(error: LLMProviderError) -> HTTPException:
@@ -75,8 +86,16 @@ def profile_word_records(profile: VocabularyProfile) -> list[VocabularyWordRecor
     ]
 
 
+def validated_lesson_content(lesson: ContextLesson) -> ContextLessonContent:
+    return load_context_lesson_content(
+        lesson.content,
+        lesson_id=lesson.id,
+        generation_metadata=lesson.generation_metadata,
+    )
+
+
 def lesson_response(lesson: ContextLesson) -> ContextLessonResponse:
-    content = ContextLessonContent.model_validate(lesson.content)
+    content = validated_lesson_content(lesson)
     return ContextLessonResponse(
         id=lesson.id,
         snapshot_id=lesson.snapshot_id,
@@ -85,8 +104,21 @@ def lesson_response(lesson: ContextLesson) -> ContextLessonResponse:
         cefr_level=lesson.cefr_level,
         exam_goal=lesson.exam_goal,
         content=PublicContextLessonContent(
+            topic_id=content.topic_id,
             title=content.title,
+            content_mode=content.content_mode,
+            core_question=content.core_question,
             reading_text=content.reading_text,
+            word_usages=content.word_usages,
+            knowledge_takeaway=content.knowledge_takeaway,
+            knowledge_sources=(
+                []
+                if is_legacy_context_lesson(
+                    lesson.generation_metadata,
+                    lesson.content,
+                )
+                else content.knowledge_sources
+            ),
             unfamiliar_words=content.unfamiliar_words,
             target_words=content.target_words,
             grammar_analysis=content.grammar_analysis,
@@ -161,6 +193,39 @@ async def attempt_response(
     )
 
 
+@router.post("/topic-proposals", response_model=TopicProposalResponse)
+async def create_topic_proposals(
+    payload: TopicProposalRequest,
+    current_user: CurrentUser,
+    db: Database,
+    provider: Provider,
+) -> TopicProposalResponse:
+    _, snapshot, vocabulary_words = await load_latest_vocabulary_inputs(
+        db,
+        current_user.id,
+    )
+    try:
+        selection = build_vocabulary_selection(
+            source_snapshot_id=snapshot.id,
+            words=vocabulary_words,
+            requested_words=payload.selected_words,
+        )
+        return await topic_planning_service.propose_for_runtime(
+            snapshot_id=snapshot.id,
+            selected_words=selection.candidate_words,
+            cefr_level=payload.cefr_level,
+            exam_goal=payload.exam_goal,
+            provider=provider,
+        )
+    except LLMProviderError as error:
+        raise provider_http_exception(error) from error
+    except (VocabularySelectionError, TopicPlanningError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+
+
 @router.post("/generate", response_model=ContextLessonResponse)
 async def generate_lesson(
     payload: LessonGenerationRequest,
@@ -168,61 +233,39 @@ async def generate_lesson(
     db: Database,
     provider: Provider,
 ) -> ContextLessonResponse:
-    connection = await db.scalar(
-        select(MaimemoConnection).where(MaimemoConnection.user_id == current_user.id)
+    profile, snapshot, vocabulary_words = await load_latest_vocabulary_inputs(
+        db,
+        current_user.id,
     )
-    profile = None
-    if connection is not None:
-        profile = await db.scalar(
-            select(VocabularyProfile)
-            .join(
-                MaimemoSyncSnapshot,
-                MaimemoSyncSnapshot.id == VocabularyProfile.snapshot_id,
-            )
-            .where(
-                VocabularyProfile.user_id == current_user.id,
-                MaimemoSyncSnapshot.provider == connection.provider,
-            )
-            .order_by(VocabularyProfile.created_at.desc())
-            .limit(1)
-        )
-    if profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Sync vocabulary before generating a lesson",
-        )
-    snapshot = await db.get(MaimemoSyncSnapshot, profile.snapshot_id)
-    if snapshot is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Snapshot is unavailable")
 
-    snapshot_word_rows = list(
-        await db.scalars(
-            select(VocabularySnapshotWord)
-            .where(
-                VocabularySnapshotWord.user_id == current_user.id,
-                VocabularySnapshotWord.snapshot_id == snapshot.id,
-            )
-            .order_by(
-                VocabularySnapshotWord.source_category,
-                VocabularySnapshotWord.word,
-            )
-        )
-    )
-    vocabulary_words = [
-        VocabularyWordRecord(word=row.word, source_category=row.source_category)
-        for row in snapshot_word_rows
-    ]
-    if not vocabulary_words:
-        vocabulary_words = profile_word_records(profile)
-    default_words = [*profile.new_words, *profile.fuzzy_words][:8]
-    selected_words = payload.selected_words or default_words
+    selected_words = payload.selected_words
     try:
         selection = build_vocabulary_selection(
             source_snapshot_id=snapshot.id,
             words=vocabulary_words,
             requested_words=selected_words,
         )
-    except VocabularySelectionError as error:
+        proposal, knowledge_brief, semantic_profiles = (
+            topic_planning_service.resolve_proposal(
+                snapshot_id=snapshot.id,
+                selected_words=selection.candidate_words,
+                cefr_level=payload.cefr_level,
+                proposal_id=payload.proposal_id,
+            )
+        )
+        confirmed_proposal = topic_planning_service.confirm(
+            proposal=proposal,
+            anchor_words=payload.anchor_words,
+            cefr_level=payload.cefr_level,
+        )
+        selection = assign_vocabulary_roles(
+            selection,
+            anchor_words=confirmed_proposal.anchor_words,
+            support_words=confirmed_proposal.support_words,
+            deferred_words=confirmed_proposal.deferred_words,
+            excluded_words=confirmed_proposal.excluded_words,
+        )
+    except (VocabularySelectionError, TopicPlanningError) as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(error),
@@ -233,9 +276,11 @@ async def generate_lesson(
             LessonGenerationContext(
                 cefr_level=payload.cefr_level,
                 exam_goal=payload.exam_goal,
-                selected_words=selection.required_target_words,
+                selected_words=selection.candidate_words,
                 mastered_words_sample=selection.context_words,
                 tracked_word_count=profile.tracked_word_count,
+                topic_proposal=confirmed_proposal,
+                knowledge_brief=knowledge_brief,
                 vocabulary_selection=selection,
             )
         )
@@ -245,9 +290,27 @@ async def generate_lesson(
     validation_errors = validate_context_lesson(
         content,
         payload.cefr_level,
-        required_target_words=selection.required_target_words,
-        priority_words=selection.priority_words,
+        required_target_words=selection.anchor_words,
+        priority_words=selection.support_words,
+        topic_proposal=confirmed_proposal,
+        knowledge_brief=knowledge_brief,
     )
+    generation_metadata = {
+        **generated.metadata,
+        "source_snapshot_id": str(snapshot.id),
+        "topic_proposal": confirmed_proposal.model_dump(mode="json", by_alias=True),
+        "knowledge_brief": knowledge_brief.model_dump(mode="json", by_alias=True),
+        "word_semantic_profiles": [
+            profile.model_dump(mode="json", by_alias=True) for profile in semantic_profiles
+        ],
+        "vocabulary_roles": {
+            "anchor_words": selection.anchor_words,
+            "support_words": selection.support_words,
+            "deferred_words": selection.deferred_words,
+            "excluded_words": selection.excluded_words,
+            "source_categories": selection.source_categories,
+        },
+    }
     lesson = ContextLesson(
         user_id=current_user.id,
         snapshot_id=snapshot.id,
@@ -257,17 +320,20 @@ async def generate_lesson(
         exam_goal=payload.exam_goal,
         content=content.model_dump(mode="json", by_alias=True),
         validation_errors=validation_errors,
-        generation_metadata=generated.metadata,
+        generation_metadata=generation_metadata,
     )
     db.add(lesson)
-    await db.commit()
+    await db.flush()
     await db.refresh(lesson)
     if validation_errors:
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"message": "Generated lesson failed validation", "errors": validation_errors},
         )
-    return lesson_response(lesson)
+    response = lesson_response(lesson)
+    await db.commit()
+    return response
 
 
 @router.get("/{lesson_id}", response_model=ContextLessonResponse)
@@ -310,7 +376,7 @@ async def submit_exercise_answer(
     provider: Provider,
 ) -> ExerciseFeedbackResponse:
     lesson = await get_owned_lesson(lesson_id, current_user, db)
-    content = ContextLessonContent.model_validate(lesson.content)
+    content = validated_lesson_content(lesson)
     if payload.exercise_index >= len(content.exercises):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -382,7 +448,7 @@ async def complete_lesson(
     provider: Provider,
 ) -> LessonCompletionResponse:
     lesson = await get_owned_lesson(lesson_id, current_user, db)
-    content = ContextLessonContent.model_validate(lesson.content)
+    content = validated_lesson_content(lesson)
     attempt = await db.scalar(
         select(LessonAttempt).where(
             LessonAttempt.lesson_id == lesson.id,
@@ -504,7 +570,7 @@ async def get_lesson_completion(
             detail="Lesson is not complete",
         )
 
-    content = ContextLessonContent.model_validate(lesson.content)
+    content = validated_lesson_content(lesson)
     mastery_states = list(
         (
             await db.scalars(
@@ -549,7 +615,7 @@ async def list_lesson_history(
     ).all()
     history: list[LessonHistoryItemResponse] = []
     for lesson in lessons:
-        content = ContextLessonContent.model_validate(lesson.content)
+        content = validated_lesson_content(lesson)
         attempt = await db.scalar(
             select(LessonAttempt).where(
                 LessonAttempt.lesson_id == lesson.id,

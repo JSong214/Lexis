@@ -27,6 +27,8 @@ export function LessonPage() {
   const completeLesson = useCompleteLessonMutation(lessonId)
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [submittedFeedback, setSubmittedFeedback] = useState<Record<number, ExerciseFeedback>>({})
+  const [prediction, setPrediction] = useState('')
+  const [showKnowledgeAnswer, setShowKnowledgeAnswer] = useState(false)
 
   if (lesson.isPending) {
     return <Card className="p-8"><StatusChip tone="default">Loading lesson</StatusChip><p className="mt-4 text-sm text-ink-muted">Reading the saved ContextLesson…</p></Card>
@@ -58,6 +60,24 @@ export function LessonPage() {
           </StatusChip>
         </div>
       </div>
+      <Card className="mt-5 p-5 md:p-7">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <SectionHeading subtitle="Prediction is optional. You can read first or reveal the answer now.">Core question</SectionHeading>
+          <StatusChip>{data.content.contentMode.replaceAll('_', ' ')}</StatusChip>
+        </div>
+        <h2 className="mt-4 text-lg font-semibold">{data.content.coreQuestion}</h2>
+        <textarea
+          className="mt-4 min-h-20 w-full resize-y rounded-lg border border-line bg-white p-3 text-sm outline-none focus:border-lexis"
+          onChange={(event) => setPrediction(event.target.value)}
+          placeholder="Optional: write your prediction before reading."
+          value={prediction}
+        />
+        <button className="mt-3 text-sm font-semibold text-lexis" onClick={() => setShowKnowledgeAnswer((current) => !current)} type="button">
+          {showKnowledgeAnswer ? 'Hide knowledge answer' : 'Reveal knowledge answer'}
+        </button>
+        {showKnowledgeAnswer && <p className="mt-3 rounded-lg bg-lexis-soft p-4 text-sm leading-6 text-lexis">{data.content.knowledgeTakeaway}</p>}
+      </Card>
+
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.9fr)]">
         <Card className="p-5 md:p-7">
@@ -67,8 +87,21 @@ export function LessonPage() {
             <p className="mt-5 text-[15px] leading-7 text-[#34393d]">{data.content.readingText}</p>
           </article>
           <div className="mt-6">
-            <SectionHeading subtitle="Words selected from the latest VocabularyProfile.">Target vocabulary</SectionHeading>
-            <div className="mt-3 flex flex-wrap gap-2">{data.content.targetWords.map((word) => <WordChip key={word}>{word}</WordChip>)}</div>
+            <SectionHeading subtitle="Each word keeps the sense and role confirmed in the topic proposal.">Lesson vocabulary</SectionHeading>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {data.content.wordUsages
+                .filter((usage) => usage.role === 'anchor' || usage.role === 'support')
+                .map((usage) => (
+                  <div className="rounded-lg border border-line p-3" key={usage.word}>
+                    <div className="flex items-center justify-between gap-2">
+                      <WordChip>{usage.word}</WordChip>
+                      <span className="text-[11px] capitalize text-lexis">{usage.role}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-ink-muted">{usage.meaningZh} · {usage.partOfSpeech}</p>
+                    <p className="mt-1 text-xs leading-5 text-ink-muted">{usage.topicRole}</p>
+                  </div>
+                ))}
+            </div>
           </div>
         </Card>
 
@@ -78,6 +111,23 @@ export function LessonPage() {
             <dl className="mt-4 space-y-3 text-sm">
               {data.content.unfamiliarWords.map((item) => <div key={item.word}><dt className="font-semibold">{item.word}</dt><dd className="mt-1 text-ink-muted">{item.meaningZh}</dd></div>)}
             </dl>
+          </Card>
+          <Card className="p-5">
+            <SectionHeading subtitle="Sources are stored with the lesson and shown after the reading.">Knowledge sources</SectionHeading>
+            <div className="mt-4 grid gap-3">
+              {data.content.knowledgeSources.map((source) => (
+                <a
+                  className="rounded-lg border border-line p-3 text-xs leading-5 text-ink-muted transition hover:border-lexis/40 hover:text-lexis"
+                  href={source.url}
+                  key={source.id}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <strong className="block text-ink">{source.title}</strong>
+                  <span>{source.publisher} · {source.version}</span>
+                </a>
+              ))}
+            </div>
           </Card>
           <Card className="p-5">
             <SectionHeading>Grammar analysis</SectionHeading>

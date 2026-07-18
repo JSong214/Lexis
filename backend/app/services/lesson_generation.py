@@ -11,8 +11,8 @@ from app.services.lesson_validation import (
     validate_source_reference,
 )
 
-PROMPT_VERSION = "lesson-generation-v3"
-SCHEMA_VERSION = "context-lesson-v1"
+PROMPT_VERSION = "knowledge-lesson-generation-v1"
+SCHEMA_VERSION = "context-lesson-v2"
 MAX_GENERATION_ATTEMPTS = 3
 WORD_TOKEN_PATTERN = re.compile(r"[A-Za-z]+(?:[-'][A-Za-z]+)*")
 
@@ -121,6 +121,7 @@ class LessonGenerationService:
         current_context = context
         retry_count = 0
         content: ContextLessonContent | None = None
+        validation_errors: list[str] = []
 
         for attempt in range(MAX_GENERATION_ATTEMPTS):
             content = normalize_generated_content(
@@ -129,8 +130,10 @@ class LessonGenerationService:
             validation_errors = validate_context_lesson(
                 content,
                 context.cefr_level,
-                required_target_words=context.selection.required_target_words,
-                priority_words=context.selection.priority_words,
+                required_target_words=context.selection.anchor_words,
+                priority_words=context.selection.support_words,
+                topic_proposal=context.topic_proposal,
+                knowledge_brief=context.knowledge_brief,
             )
             if not validation_errors:
                 break
@@ -162,5 +165,6 @@ class LessonGenerationService:
                 "input_tokens": None,
                 "output_tokens": None,
                 "retry_count": retry_count,
+                "validation_results": validation_errors,
             },
         )

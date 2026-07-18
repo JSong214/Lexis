@@ -24,11 +24,16 @@ def test_fixed_lesson_cases_meet_quality_gate_and_use_targets(case) -> None:
         == []
     )
     if case.name == "core_estimation":
-        assert "not a final answer, but" in content.reading_text
+        assert content.topic_id == "anchoring-changes-estimates"
+        assert "first number becomes an anchor" in content.reading_text
     else:
-        assert "review of the words from last week" in content.reading_text
-        assert "apply the same rule to a new sentence" in content.reading_text
-        assert "reinforce the habit" in content.reading_text
+        assert content.topic_id.startswith("retrieval-")
+        assert "does not only review" in content.reading_text
+        assert "apply one word" in content.reading_text
+        assert "helps reinforce" in content.reading_text
+    assert content.knowledge_takeaway
+    assert content.knowledge_sources
+    assert content.knowledge_claims
     assert "TODO" not in content.reading_text
     assert len(content.target_words) == len(
         {word.casefold() for word in content.target_words}

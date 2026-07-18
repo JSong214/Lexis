@@ -63,13 +63,48 @@ export function HistoryDetailPage() {
           <Card className="p-5">
             <div className="flex items-start justify-between"><SectionHeading subtitle="Read-only generated ContextLesson">Generated lesson</SectionHeading><StatusChip>Detail ready</StatusChip></div>
             <article className="mt-5 rounded-lg border border-[#e7e2d7] bg-[#fffdf8] p-5">
-              <h2 className="text-xl font-semibold">{lessonData.content.title}</h2>
-              <p className="mt-3 text-sm leading-7 text-ink-muted">{lessonData.content.readingText}</p>
-              <div className="mt-4 flex flex-wrap gap-2">{lessonData.content.targetWords.map((word) => <WordChip key={word}>{word}</WordChip>)}</div>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h2 className="text-xl font-semibold">{lessonData.content.title}</h2>
+                <StatusChip>{lessonData.content.contentMode.replaceAll('_', ' ')}</StatusChip>
+              </div>
+              <p className="mt-4 text-sm font-semibold leading-6">{lessonData.content.coreQuestion}</p>
+              <p className="mt-4 text-sm leading-7 text-ink-muted">{lessonData.content.readingText}</p>
+              <p className="mt-4 rounded-lg bg-lexis-soft p-4 text-sm leading-6 text-lexis">{lessonData.content.knowledgeTakeaway}</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {lessonData.content.wordUsages
+                  .filter((usage) => usage.role === 'anchor' || usage.role === 'support')
+                  .map((usage) => (
+                    <div className="rounded-lg border border-line bg-white p-3" key={usage.word}>
+                      <div className="flex items-center justify-between gap-2">
+                        <WordChip>{usage.word}</WordChip>
+                        <span className="text-[11px] capitalize text-lexis">{usage.role}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-ink-muted">{usage.meaningZh} · {usage.partOfSpeech}</p>
+                      <p className="mt-1 text-xs leading-5 text-ink-muted">{usage.topicRole}</p>
+                    </div>
+                  ))}
+              </div>
             </article>
             <div className="mt-4 rounded-lg bg-surface-muted p-4">
               <div className="flex items-center justify-between"><strong className="text-sm">Source sync snapshot</strong><StatusChip>Valid</StatusChip></div>
               <p className="mt-2 text-xs text-ink-muted">Snapshot {lessonData.snapshotId} · provider {lessonData.provider}</p>
+            </div>
+            <div className="mt-4 rounded-lg border border-line p-4">
+              <strong className="text-sm">Knowledge sources</strong>
+              <div className="mt-3 grid gap-2">
+                {lessonData.content.knowledgeSources.map((source) => (
+                  <a
+                    className="rounded-md bg-surface-muted p-3 text-xs leading-5 text-ink-muted transition hover:text-lexis"
+                    href={source.url}
+                    key={source.id}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <strong className="block text-ink">{source.title}</strong>
+                    <span>{source.publisher} · {source.version}</span>
+                  </a>
+                ))}
+              </div>
             </div>
             <div className="mt-4 rounded-lg border border-line p-4">
               <strong className="text-sm">Read-only grammar analysis</strong>

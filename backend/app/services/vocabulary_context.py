@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from uuid import UUID
 
 TARGET_SOURCE_CATEGORIES = frozenset({"new", "fuzzy", "practice"})
@@ -16,10 +16,38 @@ class VocabularyWordRecord:
 @dataclass(frozen=True)
 class VocabularySelection:
     source_snapshot_id: UUID | None
-    required_target_words: list[str]
-    priority_words: list[str]
-    context_words: list[str]
+    candidate_words: list[str]
+    anchor_words: list[str]
+    support_words: list[str]
+    deferred_words: list[str]
     excluded_words: list[str]
+    context_words: list[str]
+    source_categories: dict[str, str]
+
+    @property
+    def required_target_words(self) -> list[str]:
+        return self.anchor_words
+
+    @property
+    def priority_words(self) -> list[str]:
+        return self.support_words
+
+
+def assign_vocabulary_roles(
+    selection: VocabularySelection,
+    *,
+    anchor_words: list[str],
+    support_words: list[str],
+    deferred_words: list[str],
+    excluded_words: list[str],
+) -> VocabularySelection:
+    return replace(
+        selection,
+        anchor_words=anchor_words,
+        support_words=support_words,
+        deferred_words=deferred_words,
+        excluded_words=excluded_words,
+    )
 
 
 class VocabularySelectionError(ValueError):
@@ -78,15 +106,6 @@ def build_vocabulary_selection(
             + ", ".join(invalid_target_words)
         )
 
-    required_keys = {word.casefold() for word in requested}
-    priority_words = _unique_words(
-        record.word
-        for record in records
-        if (
-            record.source_category in PRIORITY_SOURCE_CATEGORIES
-            and record.word.casefold() not in required_keys
-        )
-    )
     context_words = _unique_words(
         record.word
         for record in records
@@ -94,8 +113,13 @@ def build_vocabulary_selection(
     )
     return VocabularySelection(
         source_snapshot_id=source_snapshot_id,
-        required_target_words=requested,
-        priority_words=priority_words,
-        context_words=context_words,
+        candidate_words=requested,
+        anchor_words=[],
+        support_words=[],
+        deferred_words=[],
         excluded_words=[],
+        context_words=context_words,
+        source_categories={
+            record.word: record.source_category for record in records
+        },
     )

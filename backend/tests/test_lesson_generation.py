@@ -38,13 +38,14 @@ def test_lesson_generation_service_records_safe_metadata() -> None:
     assert result.content.target_words == ["anchor"]
     assert result.metadata["provider"] == "mock"
     assert result.metadata["model"] == "mock"
-    assert result.metadata["prompt_version"] == "lesson-generation-v3"
-    assert result.metadata["schema_version"] == "context-lesson-v1"
+    assert result.metadata["prompt_version"] == "knowledge-lesson-generation-v1"
+    assert result.metadata["schema_version"] == "context-lesson-v2"
     assert isinstance(result.metadata["latency_ms"], int)
     assert result.metadata["latency_ms"] >= 0
     assert result.metadata["input_tokens"] is None
     assert result.metadata["output_tokens"] is None
     assert result.metadata["retry_count"] == 0
+    assert result.metadata["validation_results"] == []
 
 
 def test_lesson_generation_retries_with_validation_errors() -> None:
@@ -112,9 +113,7 @@ def test_normalize_generated_content_repairs_semantic_contract_fields() -> None:
         exercise.model_copy(
             update={
                 "source_reference": "reading:paragraph-3",
-                "grading_mode": (
-                    "rubric" if exercise.type != "output" else "exact_match"
-                ),
+                "grading_mode": ("rubric" if exercise.type != "output" else "exact_match"),
                 "expected_answer": (
                     "model answer not listed"
                     if exercise.type in {"syntax", "paragraph_logic"}
@@ -136,8 +135,11 @@ def test_normalize_generated_content_repairs_semantic_contract_fields() -> None:
 
     repaired_content = normalize_generated_content(broken_content)
 
-    assert validate_context_lesson(
-        repaired_content,
-        "B2",
-        required_target_words=["anchor"],
-    ) == []
+    assert (
+        validate_context_lesson(
+            repaired_content,
+            "B2",
+            required_target_words=["anchor"],
+        )
+        == []
+    )

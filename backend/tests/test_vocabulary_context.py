@@ -9,7 +9,7 @@ from app.services.vocabulary_context import (
 )
 
 
-def test_build_vocabulary_selection_separates_word_roles() -> None:
+def test_build_vocabulary_selection_preserves_candidates_before_topic_choice() -> None:
     snapshot_id = uuid4()
     selection = build_vocabulary_selection(
         source_snapshot_id=snapshot_id,
@@ -23,10 +23,13 @@ def test_build_vocabulary_selection_separates_word_roles() -> None:
     )
 
     assert selection.source_snapshot_id == snapshot_id
-    assert selection.required_target_words == ["anchor"]
-    assert selection.priority_words == ["retain", "review"]
+    assert selection.candidate_words == ["anchor"]
+    assert selection.anchor_words == []
+    assert selection.support_words == []
+    assert selection.deferred_words == []
     assert selection.context_words == ["stable"]
     assert selection.excluded_words == []
+    assert selection.source_categories["anchor"] == "new"
 
 
 def test_build_vocabulary_selection_rejects_unknown_words() -> None:

@@ -5,6 +5,12 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.maimemo import to_camel
+from app.schemas.topic import (
+    ContentMode,
+    KnowledgeClaim,
+    KnowledgeSource,
+    TopicWordUsage,
+)
 
 CefrLevel = Literal["A1", "A2", "B1", "B2", "C1", "C2"]
 ExerciseType = Literal[
@@ -45,8 +51,15 @@ class Exercise(LessonApiModel):
 
 
 class ContextLessonContent(LessonApiModel):
+    topic_id: str
     title: str
+    content_mode: ContentMode
+    core_question: str
     reading_text: str
+    word_usages: list[TopicWordUsage]
+    knowledge_takeaway: str
+    knowledge_sources: list[KnowledgeSource] = Field(min_length=1)
+    knowledge_claims: list[KnowledgeClaim] = Field(min_length=1, max_length=3)
     unfamiliar_words: list[WordAid]
     target_words: list[str]
     grammar_analysis: list[str]
@@ -60,8 +73,14 @@ class PublicExercise(LessonApiModel):
 
 
 class PublicContextLessonContent(LessonApiModel):
+    topic_id: str
     title: str
+    content_mode: ContentMode
+    core_question: str
     reading_text: str
+    word_usages: list[TopicWordUsage]
+    knowledge_takeaway: str
+    knowledge_sources: list[KnowledgeSource]
     unfamiliar_words: list[WordAid]
     target_words: list[str]
     grammar_analysis: list[str]
@@ -71,7 +90,9 @@ class PublicContextLessonContent(LessonApiModel):
 class LessonGenerationRequest(LessonApiModel):
     cefr_level: CefrLevel = "B2"
     exam_goal: str = Field(default="General English", max_length=120)
-    selected_words: list[str] = Field(default_factory=list, max_length=16)
+    selected_words: list[str] = Field(min_length=1, max_length=16)
+    proposal_id: str = Field(min_length=1, max_length=120)
+    anchor_words: list[str] = Field(min_length=1, max_length=5)
 
 
 class ContextLessonResponse(LessonApiModel):

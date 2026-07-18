@@ -13,7 +13,7 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:55433/lexis"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@127.0.0.1:55433/lexis"
     session_cookie_name: str = "lexis_session"
     session_max_age_seconds: int = 60 * 60 * 24 * 14
     session_cookie_secure: bool = False

@@ -1,6 +1,8 @@
 import re
 
 from app.schemas.lesson import CefrLevel, ContextLessonContent
+from app.schemas.topic import KnowledgeBrief, TopicProposal
+from app.services.knowledge_validation import validate_knowledge_contract
 
 CEFR_WORD_RANGES: dict[CefrLevel, tuple[int, int]] = {
     "A1": (50, 70),
@@ -56,6 +58,8 @@ def validate_context_lesson(
     *,
     required_target_words: list[str] | None = None,
     priority_words: list[str] | None = None,
+    topic_proposal: TopicProposal | None = None,
+    knowledge_brief: KnowledgeBrief | None = None,
 ) -> list[str]:
     del priority_words
     errors: list[str] = []
@@ -102,6 +106,14 @@ def validate_context_lesson(
         errors.append("Target words missing from reading: " + ", ".join(missing_target_words))
     required_word_keys = {word.strip().casefold() for word in required_target_words or []}
     returned_word_keys = set(target_word_keys)
+    errors.extend(
+        validate_knowledge_contract(
+            content,
+            cefr_level,
+            topic_proposal=topic_proposal,
+            knowledge_brief=knowledge_brief,
+        )
+    )
     missing_required_words = [
         word
         for word in required_target_words or []
@@ -144,6 +156,16 @@ def validate_context_lesson(
             and exercise.target_word.strip().casefold() not in target_word_key_set
         ):
             errors.append(f"Exercise {exercise.type} references an unknown target word")
+        if exercise.type == "paragraph_logic" and exercise.target_word is not None:
+            errors.append("Knowledge-understanding exercise must not require a target word")
+        if (
+            exercise.type == "output"
+            and (
+                exercise.target_word is None
+                or exercise.target_word.strip().casefold() not in returned_word_keys
+            )
+        ):
+            errors.append("Output exercise must require one confirmed Anchor word")
         if not exercise.rubric or any(not item.strip() for item in exercise.rubric):
             errors.append(f"Exercise {exercise.type} must declare a non-empty rubric")
         if exercise.grading_mode == "exact_match":

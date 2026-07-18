@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiGet, apiPost } from '../../lib/api-client'
+import type {
+  CefrLevel,
+  ContentMode,
+  KnowledgeSource,
+  TopicWordUsage,
+} from './topic-planning'
 
 export interface WordAid {
   meaningZh: string
@@ -18,11 +24,17 @@ export interface ContextLesson {
   snapshotId: string
   provider: string
   status: string
-  cefrLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2'
+  cefrLevel: CefrLevel
   examGoal: string
   content: {
+    topicId: string
     title: string
+    contentMode: ContentMode
+    coreQuestion: string
     readingText: string
+    wordUsages: TopicWordUsage[]
+    knowledgeTakeaway: string
+    knowledgeSources: KnowledgeSource[]
     unfamiliarWords: WordAid[]
     targetWords: string[]
     grammarAnalysis: string[]
@@ -82,6 +94,8 @@ interface GenerateLessonInput {
   cefrLevel: ContextLesson['cefrLevel']
   examGoal: string
   selectedWords: string[]
+  proposalId: string
+  anchorWords: string[]
 }
 
 interface SubmitAnswerInput {
